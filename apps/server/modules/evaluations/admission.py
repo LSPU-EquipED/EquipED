@@ -82,6 +82,37 @@ def create_evaluation(
             "Invalid target_agent. Must be one of sme, coordinator, gad, itso."
         )
 
+    # Only the current scored ITSO harness accepts new evaluations.
+    itso_form = None
+    itso_adapter_version = None
+    if target_agent == "itso":
+        from sqlalchemy.orm import Session
+
+        if isinstance(db, Session):
+            from server.modules.evaluations.itso.exceptions import ITSOError
+            from server.modules.rubrics import (
+                get_active_form_definition,
+                get_active_rubric_adapter_version,
+            )
+
+            itso_adapter_version = get_active_rubric_adapter_version(
+                db, "itso", lock=True
+            )
+            if itso_adapter_version != 3:
+                raise ITSOError("itso_harness_upgrade_required", 503)
+            itso_form = get_active_form_definition(db, "itso")
+            if itso_form is None or itso_form.adapter_version != itso_adapter_version:
+                raise ITSOError("itso_harness_upgrade_required", 503)
+            from server.modules.evaluations.itso.reference_tools import (
+                ReferenceToolsUnavailable,
+                ensure_public_reference_tools_ready,
+            )
+
+            try:
+                ensure_public_reference_tools_ready(needs_search=True)
+            except ReferenceToolsUnavailable as exc:
+                raise ITSOError(exc.code.value, 503) from exc
+
     curriculum_id: uuid.UUID | None = None
     # Single-agent evaluations are 100% complete for the targeted domain.
     # The legacy partial mode is deprecated.
@@ -154,6 +185,16 @@ def create_evaluation(
         completed_at=None,
     )
     db.add(job)
+    if itso_form is not None:
+        from server.modules.rubrics.snapshots import persist_evaluation_form_snapshots
+
+        db.flush()
+        persist_evaluation_form_snapshots(db, job.evaluation_id, (itso_form,))
+        # Verification is mandatory and is frozen as execution provenance.
+        job.adapter_request = {
+            **(job.adapter_request or {}),
+            "itso_reference_verification": True,
+        }
     if with_commit:
         db.commit()
 
@@ -206,9 +247,7 @@ def _validate_evaluation_target(
 
             has_link = (
                 db.query(UserDocument)
-                .filter_by(
-                    user_id=current_user_id, document_id=document.document_id
-                )
+                .filter_by(user_id=current_user_id, document_id=document.document_id)
                 .first()
             )
             if has_link is None:

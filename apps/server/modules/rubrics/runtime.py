@@ -129,8 +129,39 @@ def get_active_rubric_scoring_rules(
             session.close()
 
 
+def get_active_rubric_adapter_version(
+    db: Any, agent_id: str, *, lock: bool = False
+) -> int | None:
+    """Return the active published rubric's adapter version, if one exists.
+
+    ``lock=True`` holds the activation row through the caller's transaction so
+    admission cannot race an explicit revision cutover.
+    """
+    if not lock:
+        rubric_set = _get_active_rubric_set(db, agent_id)
+        return rubric_set.adapter_version if rubric_set is not None else None
+
+    activation = (
+        db.query(RubricAgentActivation)
+        .filter_by(agent_id=agent_id)
+        .with_for_update()
+        .one_or_none()
+    )
+    if activation is None:
+        return None
+    rubric_set = db.get(RubricSet, activation.rubric_set_id)
+    if (
+        rubric_set is None
+        or rubric_set.agent_id != agent_id
+        or rubric_set.status != "published"
+    ):
+        return None
+    return rubric_set.adapter_version
+
+
 __all__ = [
     "_get_active_rubric_set",
+    "get_active_rubric_adapter_version",
     "get_active_rubric_context",
     "get_active_rubric_scoring_rules",
 ]

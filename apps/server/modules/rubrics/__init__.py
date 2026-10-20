@@ -30,7 +30,10 @@ from .reset import (
     CoordinatorRubricResetReport,
     reset_coordinator_rubric,
 )
-from .service import get_active_rubric_context
+from .service import (
+    get_active_rubric_adapter_version,
+    get_active_rubric_context,
+)
 from .snapshots import (
     load_verified_evaluation_snapshots,
     persist_evaluation_form_snapshots,
@@ -52,6 +55,7 @@ __all__ = [
     "create_draft_from_active",
     "delete_draft_revision",
     "get_active_form_definition",
+    "get_active_rubric_adapter_version",
     "get_active_rubric_context",
     "get_form_definition_by_id",
     "load_active_form_definitions",

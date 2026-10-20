@@ -111,6 +111,9 @@ def export_item_level_dpo_pairs(
             "DPO exports require exactly one target agent to prevent dataset "
             f"contamination, got {agent_names}"
         )
+    from .itso_guard import reject_itso_v2_export
+
+    reject_itso_v2_export(db, agent_id=agent_names[0])
     candidate_rows = (
         db.query(PreferenceLog.evaluation_id, PreferenceLog.agent_name)
         .filter(
@@ -254,6 +257,9 @@ def export_score_level_dpo_pairs(
             "DPO exports require exactly one target agent to prevent dataset "
             f"contamination, got {agent_names}"
         )
+    from .itso_guard import reject_itso_v2_export
+
+    reject_itso_v2_export(db, agent_id=agent_names[0])
     candidate_rows = (
         db.query(PreferenceLog.evaluation_id, PreferenceLog.agent_name)
         .filter(

@@ -1,4 +1,4 @@
-"""Immutable ITSO precheck and policy evidence snapshots."""
+"""Immutable, residency-gated institutional policy context for ITSO."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
-from equiped_harness import run_itso_precheck
 from server.core.config import get_settings
 from server.core.endpoint_security import is_private_endpoint
 from server.modules.embeddings.policy_retrieval import (
@@ -34,7 +33,6 @@ def _freeze(value: Any) -> Any:
 
 
 class ITSOEvidenceBuilder:
-    _PROVENANCE_CHUNK_ID_CAP = 64
     _POLICY_RETRIEVAL_VERSION = "1"
 
     def __init__(self, db: Any | None = None) -> None:
@@ -51,71 +49,6 @@ class ITSOEvidenceBuilder:
             return model.encode([query_text], show_progress_bar=False).tolist()[0]
         except Exception:
             return None
-
-    def _precompute_itso_context(
-        self,
-        chunk_infos: list[dict[str, Any]],
-    ) -> ITSOEvidenceSnapshot:
-        """Build a frozen ITSO evidence snapshot and phase-1 provenance.
-
-        Called once per evaluation, before agent dispatch. The result
-        contains:
-        - ``provenance``: phase-1 provenance dict (precheck result, chunk ids,
-          rubric/prompt version context + policy evidence provenance).
-        - precheck fields: bounded precheck signals embedded in provenance.
-        - ``policy_evidence``: full policy evidence snapshot (for prompt
-          injection — contains policy clause text, never persisted).
-
-        This snapshot is immutable after creation and is injected into
-        the ITSO agent kwargs so retries do not rebuild evidence.
-        """
-        if not chunk_infos:
-            return ITSOEvidenceSnapshot(provenance=None, policy_evidence=None)
-
-        # Build the SLM text for precheck from chunk texts (same ordering
-        # the agent would produce).
-        slm_text = "\n".join(
-            str(info.get("text", "")) for info in chunk_infos if info.get("text")
-        )
-        precheck = run_itso_precheck(slm_text)
-
-        # Ordered chunk identifiers (immutable snapshot, bounded).
-        all_chunk_ids = [
-            str(info.get("chunk_id", ""))
-            for info in chunk_infos
-            if info.get("chunk_id")
-        ]
-        chunk_ids_hash = hashlib.sha256(
-            "|".join(all_chunk_ids).encode("utf-8")
-        ).hexdigest()
-        chunk_ids_ordered = all_chunk_ids[: self._PROVENANCE_CHUNK_ID_CAP]
-
-        provenance: dict[str, Any] = {
-            # Phase-1: frozen before dispatch.
-            "precheck_version": precheck["version"],
-            "precheck_result_hash": precheck["result_hash"],
-            "bibliography_found": precheck["bibliography_found"],
-            "reference_count": precheck["reference_count"],
-            "intext_citation_count": precheck["intext_citation_count"],
-            "doi_count": precheck["doi_count"],
-            "coverage_ratio": precheck["coverage_ratio"],
-            "chunk_ids_ordered": chunk_ids_ordered,
-            "chunk_id_count": len(all_chunk_ids),
-            "chunk_ids_hash": chunk_ids_hash,
-        }
-
-        # Build policy evidence snapshot (fail open, never blocks).
-        policy_snapshot = self._build_policy_evidence_snapshot()
-        policy_evidence = policy_snapshot.get("evidence")
-        provenance["policy_delivery_state"] = policy_snapshot["delivery_state"]
-        provenance["policy_evidence"] = policy_snapshot["provenance"]
-        provenance["policy_retrieval_version"] = policy_snapshot["retrieval_version"]
-        provenance["policy_trimmed"] = False
-
-        return ITSOEvidenceSnapshot(
-            provenance=_freeze(provenance),
-            policy_evidence=_freeze(policy_evidence),
-        )
 
     def _build_policy_evidence_snapshot(self) -> dict[str, Any]:
         """Build a frozen, attempt-scoped ITSO policy evidence snapshot.
@@ -258,5 +191,16 @@ class ITSOEvidenceBuilder:
         """
         return "information security data privacy intellectual property academic rights"
 
-    def build(self, chunk_infos: list[dict[str, Any]]) -> ITSOEvidenceSnapshot:
-        return self._precompute_itso_context(chunk_infos)
+    def build_policy_context(self) -> ITSOEvidenceSnapshot:
+        """Build only the residency-gated policy snapshot for adapter v3."""
+        policy_snapshot = self._build_policy_evidence_snapshot()
+        provenance = {
+            "policy_delivery_state": policy_snapshot["delivery_state"],
+            "policy_evidence": policy_snapshot["provenance"],
+            "policy_retrieval_version": policy_snapshot["retrieval_version"],
+            "policy_trimmed": False,
+        }
+        return ITSOEvidenceSnapshot(
+            provenance=_freeze(provenance),
+            policy_evidence=_freeze(policy_snapshot.get("evidence")),
+        )

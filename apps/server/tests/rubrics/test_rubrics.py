@@ -7,13 +7,17 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from equiped_harness.contracts import LlmRubricGuidanceConfig
 from server.modules.rubrics.models import (
     RubricAgentActivation,
     RubricCriterion,
     RubricDomain,
     RubricSet,
 )
-from server.modules.rubrics.repository import activate_revision
+from server.modules.rubrics.repository import (
+    activate_revision,
+    get_active_form_definition,
+)
 from server.modules.rubrics.service import (
     _get_active_rubric_set,
     get_active_rubric_context,
@@ -80,7 +84,7 @@ def test_active_rubric_context_returns_all_rows_per_agent(db_session) -> None:
         "sme": (15, 1),
         "coordinator": (15, 3),
         "gad": (9, 1),
-        "itso": (9, 1),
+        "itso": (9, 3),
     }
 
     for agent_id, (expected_count, expected_ver) in expected.items():
@@ -181,6 +185,71 @@ def test_active_rubric_scoring_rules_returns_gad_rules(db_session) -> None:
     assert "unique instance" in rules["GAD-01"]
 
 
+def test_active_itso_rubric_rules_and_guidance_survive_relational_seed(
+    db_session,
+) -> None:
+    _seed_from_json(db_session)
+
+    rules = get_active_rubric_scoring_rules("itso", db=db_session)
+    assert rules["ITSO-01"].strip()
+    assert rules["ITSO-02"].strip()
+
+    form = get_active_form_definition(db_session, "itso")
+    assert form is not None
+    criterion = next(
+        item
+        for domain in form.domains
+        for item in domain.criteria
+        if item.criterion_code == "ITSO-02"
+    )
+    config = criterion.strategy_config
+    assert isinstance(config, LlmRubricGuidanceConfig)
+    assert config.level_descriptors is not None
+    assert [level.score for level in config.level_descriptors] == [1, 2, 3, 4]
+    guidance = config.guidance.casefold()
+    assert "learning resources" in guidance
+    assert "url is absent" in guidance
+
+
+def test_itso_criteria_three_to_five_have_advisory_four_band_guidance(
+    db_session,
+) -> None:
+    _seed_from_json(db_session)
+
+    rules = get_active_rubric_scoring_rules("itso", db=db_session)
+    form = get_active_form_definition(db_session, "itso")
+    assert form is not None
+    criteria = {
+        item.criterion_code: item
+        for domain in form.domains
+        for item in domain.criteria
+        if item.criterion_code in {"ITSO-03", "ITSO-04", "ITSO-05"}
+    }
+    assert set(criteria) == {"ITSO-03", "ITSO-04", "ITSO-05"}
+
+    expected_terms = {
+        "ITSO-03": ("plagiarism", "employment", "ownership"),
+        "ITSO-04": ("extracted text", "fictional examples", "full-pdf"),
+        "ITSO-05": ("authorization", "educational use", "faculty ownership"),
+    }
+    for code, criterion in criteria.items():
+        config = criterion.strategy_config
+        assert isinstance(config, LlmRubricGuidanceConfig)
+        assert config.level_descriptors is not None
+        assert [level.score for level in config.level_descriptors] == [1, 2, 3, 4]
+        content = (config.guidance + " " + rules[code]).casefold()
+        assert all(term in content for term in expected_terms[code])
+        assert "advisory" in content
+        assert "invent citations" in content
+
+    c4_descriptors = criteria["ITSO-04"].strategy_config.level_descriptors
+    assert "minor confidentiality weakness" in c4_descriptors[2].descriptor
+    assert (
+        "score 4 even when extracted-text coverage is limited"
+        in rules["ITSO-04"].casefold()
+    )
+
+
 def test_absent_activation_fails_closed(db_session) -> None:
     """When activation pointer is absent, fail closed without guessing published."""
     _seed_from_json(db_session)
@@ -192,6 +261,7 @@ def test_absent_activation_fails_closed(db_session) -> None:
     assert _get_active_rubric_set(db_session, "sme") is None
     assert get_active_rubric_context("sme", db=db_session) == []
     assert get_active_rubric_scoring_rules("sme", db=db_session) == {}
+
 
 def test_invalid_activation_draft_or_retired_fails_closed(db_session) -> None:
     """When activation points to draft or retired set, queries fail closed."""

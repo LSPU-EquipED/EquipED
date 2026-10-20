@@ -58,11 +58,63 @@ from server.modules.training_data.serving import build_adapter_plans
 
 logger = logging.getLogger(__name__)
 _DRAIN_LOCK = threading.Lock()
+_ITSO_VERIFICATION_REQUEST_KEY = "itso_reference_verification"
+
+
+def _serving_adapter_request(request: Any) -> Any:
+    """Remove evaluation provenance before passing JSON to adapter serving."""
+    if not isinstance(request, dict) or _ITSO_VERIFICATION_REQUEST_KEY not in request:
+        return request
+    return {
+        key: value
+        for key, value in request.items()
+        if key != _ITSO_VERIFICATION_REQUEST_KEY
+    }
 
 
 def _safe_failure(exc: BaseException) -> tuple[str, str]:
     """Return bounded, non-sensitive failure attribution."""
     return type(exc).__name__[:64], error_reference(exc)
+
+
+def _build_itso_v3_reference_report(query_text: str) -> dict[str, Any]:
+    """Always run mandatory public-reference verification for adapter 3."""
+    import asyncio
+
+    from server.modules.evaluations.itso.reference_tools import (
+        build_public_reference_report,
+    )
+
+    report = asyncio.run(build_public_reference_report(query_text, enabled=True))
+    # Report aggregate retrieval health before dispatch. Failed input validation
+    # runs before model capture, so its opaque reference alone cannot explain an
+    # empty search. Never log source queries, passages, URLs or module text.
+    statuses = {
+        status: sum(row.get("status") == status for row in report["references"])
+        for status in (
+            "matched",
+            "ambiguous",
+            "mismatched",
+            "unverified",
+            "unavailable",
+        )
+    }
+    usable = sum(
+        row.get("status") in {"matched", "ambiguous", "mismatch", "mismatched"}
+        and bool(row.get("source_url") and row.get("excerpt"))
+        for row in report["references"]
+    )
+    attempts = report.get("attempts", {})
+    log = logger.info if usable else logger.warning
+    log(
+        "[ITSO_REFERENCE_CHECK] search_attempts=%s | page_requests=%s | "
+        "usable_sources=%d | reference_statuses=%s",
+        attempts.get("search", 0),
+        attempts.get("source", 0),
+        usable,
+        statuses,
+    )
+    return report
 
 
 def _scheduled_ids_for_job(job: Any) -> tuple[str, ...]:
@@ -218,6 +270,28 @@ def _execute_claimed_evaluation(
 
         heartbeat_evaluation_execution(session, evaluation_id, execution_token)
 
+        scheduled_ids = _scheduled_ids_for_job(job)
+        existing_results = (
+            session.query(AgentResult).filter_by(evaluation_id=evaluation_id).count()
+        )
+        _verified_snapshots = _prepare_snapshots_and_enter_evaluating(
+            session,
+            evaluation_id,
+            execution_token,
+            scheduled_ids,
+            reuse_only=existing_results > 0,
+        )
+        heartbeat_evaluation_execution(session, evaluation_id, execution_token)
+
+        if any(
+            snapshot.agent_id == "itso" and snapshot.adapter_version != 3
+            for snapshot in _verified_snapshots
+        ):
+            raise EvaluationPipelineUnavailableError(
+                "This ITSO harness version is retired. Submit a new evaluation "
+                "using the current rubric. Saved results remain readable."
+            )
+
         slm_chunks = get_document_chunks(job.document_id, db=session)
         if not slm_chunks:
             raise EvaluationPipelineUnavailableError(
@@ -226,21 +300,6 @@ def _execute_claimed_evaluation(
         slm_text = "\n".join(
             [chunk.text for chunk in slm_chunks if getattr(chunk, "text", None)]
         )
-
-        scheduled_ids = _scheduled_ids_for_job(job)
-        existing_results = (
-            session.query(AgentResult).filter_by(evaluation_id=evaluation_id).count()
-        )
-        reuse_only = existing_results > 0
-
-        _verified_snapshots = _prepare_snapshots_and_enter_evaluating(
-            session,
-            evaluation_id,
-            execution_token,
-            scheduled_ids,
-            reuse_only=reuse_only,
-        )
-        heartbeat_evaluation_execution(session, evaluation_id, execution_token)
 
         # 2) Idempotency check: if a prior attempt already persisted
         #    AgentResult rows, do not re-run the supervisor. Resume from
@@ -258,7 +317,7 @@ def _execute_claimed_evaluation(
                 plans = build_adapter_plans(
                     session,
                     [snapshot.agent_id for snapshot in verified_snapshots],
-                    job.adapter_request,
+                    _serving_adapter_request(job.adapter_request),
                 )
                 lora_by_agent = {
                     agent_id: (list(plan.lora) if plan.lora is not None else None)
@@ -294,6 +353,20 @@ def _execute_claimed_evaluation(
             except Exception:
                 roadmap_ctx = None
 
+            public_reference_verification = None
+            itso_v3 = any(
+                snapshot.agent_id == "itso" and snapshot.adapter_version == 3
+                for snapshot in verified_snapshots
+            )
+            if itso_v3:
+                # External access is done by the sequential worker before the
+                # supervisor starts its parallel agent dispatch. Release the SQL
+                # transaction first and pass only immutable JSON into that work.
+                session.commit()
+                public_reference_verification = _build_itso_v3_reference_report(
+                    slm_text
+                )
+
             def owner_heartbeat() -> None:
                 if not heartbeat_evaluation_execution(
                     session, evaluation_id, execution_token
@@ -317,6 +390,11 @@ def _execute_claimed_evaluation(
                     },
                     **({"roadmap": roadmap_ctx} if roadmap_ctx else {}),
                     "confirmed_program": job.confirmed_program,
+                    **(
+                        {"public_reference_verification": public_reference_verification}
+                        if public_reference_verification is not None
+                        else {}
+                    ),
                 },
                 heartbeat_callback=owner_heartbeat,
                 lora_by_agent=lora_by_agent,

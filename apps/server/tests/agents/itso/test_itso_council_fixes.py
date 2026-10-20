@@ -5,7 +5,11 @@ from uuid import uuid4
 from equiped_harness.itso.agent import ITSO
 from equiped_harness.itso.response import ITSO_CRITERIA_TITLES
 from equiped_harness.transport import CompletionResult
-from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
+from server.tests.agents.itso.conftest_helper import (
+    make_itso_test_snapshot,
+    public_reference_context,
+    v3_response_for_prompt,
+)
 
 
 def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch, harness_config):
@@ -15,13 +19,22 @@ def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch, harness_
         def __init__(self):
             self.prompts = []
             self.responses = iter(["{bad", _response("ok")])
+            self.last_response = ""
 
         def generate_result(
             self, prompt, *, temperature, max_new_tokens, deadline, response_contract
         ):
             self.prompts.append(prompt)
+            response = next(self.responses, self.last_response)
+            self.last_response = response
             return CompletionResult(
-                next(self.responses), "primary", 2, 3, 5, "stop", attempts=1
+                v3_response_for_prompt(prompt, response),
+                "primary",
+                2,
+                3,
+                5,
+                "stop",
+                attempts=1,
             )
 
     harness_config(
@@ -29,10 +42,10 @@ def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch, harness_
             "S",
             (),
             {
-                "agent_total_prompt_budget_chars": 8000,
+                "agent_prompt_budget_chars": 16000,
+                "agent_total_prompt_budget_chars": 32000,
                 "agent_max_chunks": 12,
                 "agent_max_excerpt_chars": 800,
-                "agent_prompt_budget_chars": 5000,
                 "agent_small_doc_threshold": 6,
                 "llm_max_new_tokens": 2048,
                 "get_agent_temperature": lambda s, n: 0.0,
@@ -44,13 +57,16 @@ def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch, harness_
     result = ITSO(llm_client=client).run(
         evaluation_id=eval_id,
         document_id=uuid4(),
-        chunk_infos=[{"chunk_id": "c", "text": "x"}],
+        chunk_infos=[
+            {"chunk_id": "c", "text": "This module explains information security."}
+        ],
         form_snapshot=make_itso_test_snapshot(eval_id),
+        precomputed_context=public_reference_context(),
     )
     assert result.provenance["repair_occurred"] is True
     assert result.provenance["fallback_occurred"] is False
     assert result.provenance["actual_model"] == "primary"
-    assert len(client.prompts) == 2
+    assert len(client.prompts) == 3
     assert "{bad" not in (result.raw_response or "")
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -388,6 +389,17 @@ class EvaluationContextBuilder:
         precomputed_context = self._build_precomputed_context(
             text, reference_document_ids=refs, chunk_infos=infos
         )
+        public_verification = context.get("public_reference_verification")
+        if public_verification is not None:
+            try:
+                encoded_report = json.dumps(
+                    public_verification, ensure_ascii=False, sort_keys=True
+                )
+            except (TypeError, ValueError) as exc:
+                raise SupervisorExecutionError(
+                    "public reference verification report is not JSON serializable"
+                ) from exc
+            precomputed_context["public_reference_verification"] = [encoded_report]
         logger.info(
             "[EVAL_TIMING] phase=precompute_context | seconds=%.3f | sources=%d",
             time.perf_counter() - precompute_started,

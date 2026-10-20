@@ -37,6 +37,7 @@ MODULE_ROUTER_PATHS = (
     "server.modules.auth.router",
     "server.modules.synthesis.router",
     "server.modules.evaluations.router",
+    "server.modules.evaluations.itso.router",
     "server.modules.syllabus_alignment.router",
     "server.modules.curriculum_alignment.router",
     "server.modules.feedback.router",

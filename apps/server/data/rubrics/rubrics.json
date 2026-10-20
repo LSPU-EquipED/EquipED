@@ -239,8 +239,8 @@
     },
     {
       "agent_id": "itso",
-      "name": "ITSO Rubric v1",
-      "version_number": 1,
+      "name": "ITSO Rubric v3",
+      "version_number": 3,
       "status": "active",
       "description": "ITSO rubric for intellectual property and data privacy.",
       "domains": [
@@ -253,35 +253,121 @@
               "criterion_code": "ITSO-01",
               "title": "No IP Issue",
               "description": "The material has no intellectual property issue, such as plagiarism.",
-              "display_order": 1
+              "display_order": 1,
+              "strategy_config": {
+                "strategy": "llm_rubric_guidance",
+                "guidance": "Review the supplied module against sources it actually cites, using available reference evidence and a bounded comparison of matching passages or assets. Consider attribution, quoted/paraphrased material, figures, tables, and any explicit licence or originality statement. A URL is not required and its absence alone is not an IP concern. A relevant page found online is not a module citation unless the module identifies it. Distinguish a title-only page from a verified author/year or work match; report missing metadata as a recommendation. Score observed evidence only: do not claim exhaustive plagiarism clearance, infer a legal violation, or treat inability to access a source as misconduct. Scores are advisory and require human review.",
+                "level_descriptors": [
+                  {
+                    "score": 1,
+                    "descriptor": "Documented substantive conflict between an identified source and the module's use requires human review; no legal conclusion."
+                  },
+                  {
+                    "score": 2,
+                    "descriptor": "Concrete observed attribution or source/use concerns require human review; missing URLs alone do not qualify."
+                  },
+                  {
+                    "score": 3,
+                    "descriptor": "Available attribution and topic comparison show no verified issue, while originality or licence evidence remains unverified."
+                  },
+                  {
+                    "score": 4,
+                    "descriptor": "Clear, consistent attribution plus explicit licence or originality evidence; bounded review found no substantive source/use conflict."
+                  }
+                ]
+              },
+              "scoring_strategy": "llm_rubric_guidance",
+              "scoring_rule": "Assess only a bounded comparison between the supplied module and sources it actually cites. Score 4 for consistent attribution plus explicit licence/originality evidence, with no verified conflict in that review; 3 when available attribution and topic comparison show no verified issue but originality remains unverified; 2 for concrete observed attribution concerns needing human review; 1 for a documented substantive source/use conflict needing human review. Missing URLs alone never lower this score. Do not claim exhaustive plagiarism clearance or a legal/copyright finding."
             },
             {
               "criterion_code": "ITSO-02",
               "title": "Proper References",
               "description": "The material includes reference section where the sources are properly acknowledged.",
-              "display_order": 2
+              "display_order": 2,
+              "strategy_config": {
+                "strategy": "llm_rubric_guidance",
+                "guidance": "Check the supplied module for Learning resources, References, Bibliography, or equivalent source acknowledgements. Author and work names can be sufficient to search for and identify a source; do not require hyperlinks or lower a score solely because a URL is absent. Use relevant online records to corroborate bibliographic details, distinguishing a matching author/year/work from a topic-only page. Recommend missing metadata without alleging misconduct. Score only entries visible in the supplied module: a short excerpt cannot establish whole-module absence, and an inaccessible source alone is not misconduct. Do not count an externally found topic page as a module citation. Scores are advisory and require human review.",
+                "level_descriptors": [
+                  {
+                    "score": 1,
+                    "descriptor": "No acknowledged sources are established in the supplied module, or listed entries cannot be identified."
+                  },
+                  {
+                    "score": 2,
+                    "descriptor": "Sources are vague or incomplete, or verified substantive attribution/metadata issues need repair."
+                  },
+                  {
+                    "score": 3,
+                    "descriptor": "Cited works are generally identifiable; minor metadata omissions or stated verification limits remain."
+                  },
+                  {
+                    "score": 4,
+                    "descriptor": "Identifiable, complete cited works have relevant online corroboration and no substantive verified bibliographic discrepancy."
+                  }
+                ]
+              },
+              "scoring_strategy": "llm_rubric_guidance",
+              "scoring_rule": "Accept Learning resources, References, or Bibliography as acknowledgement sections. Score 4 for identifiable, complete cited works with relevant online corroboration and no substantive verified discrepancy; 3 for generally identifiable works with minor omissions or clearly stated verification limits; 2 for vague/incomplete sources or verified substantive attribution/metadata issues needing repair; 1 when no acknowledged sources are established in the supplied module or entries are unidentifiable. Search named works; do not penalize absent hyperlinks alone. Never infer absence from a short excerpt; source unavailability alone is not misconduct."
             },
             {
               "criterion_code": "ITSO-03",
               "title": "Faculty Ownership",
               "description": "The material ensures the freedom of the faculty to retain ownership of the teaching materials.",
-              "display_order": 3
+              "display_order": 3,
+              "strategy_config": {
+                "strategy": "llm_rubric_guidance",
+                "guidance": "Assess only ownership evidence in the supplied module and reviewed policy passages. Use ITSO-01's source comparison and ITSO-02's attribution context to identify original contributions, but no plagiarism finding does not prove legal ownership. Distinguish authorship, original faculty contributions, employment or agreement terms, and permissions for third-party material. Missing policies or agreements create uncertainty, not a violation. Give an advisory score, cite a relevant passage or state the reviewed coverage/absence explicitly, and do not invent citations or make legal conclusions.",
+                "level_descriptors": [
+                  {"score": 1, "descriptor": "Concrete reviewed evidence assigns or waives faculty ownership unfairly, or identifies an unresolved ownership conflict; advisory human review required."},
+                  {"score": 2, "descriptor": "Specific authorship, employment/agreement, or third-party permission evidence raises an ownership concern needing clarification; do not infer from missing documents."},
+                  {"score": 3, "descriptor": "No concrete adverse ownership term was found in reviewed material, but ownership, agreement, or permission evidence is incomplete or unavailable."},
+                  {"score": 4, "descriptor": "Reviewed evidence clearly recognizes faculty contributions and preserves ownership or defines fair, explicit terms; no concrete conflict found."}
+                ]
+              },
+              "scoring_strategy": "llm_rubric_guidance",
+              "scoring_rule": "Score 1 for concrete evidence of unfair assignment/waiver or unresolved ownership conflict; 2 for specific authorship, employment/agreement, or third-party permission concerns needing clarification; 3 when no adverse term is found but evidence is incomplete; 4 when reviewed evidence clearly recognizes faculty contributions and preserves ownership or defines fair explicit terms. Missing policies or agreements are uncertainty, not a violation. Use ITSO-01 source comparison and ITSO-02 attribution context; no plagiarism finding does not prove legal ownership. Scores 1–4 are advisory: cite a relevant passage or state reviewed coverage/absence, never invent citations or make legal conclusions."
             },
             {
               "criterion_code": "ITSO-04",
               "title": "Student Confidentiality",
               "description": "The material includes confidentiality of student information.",
-              "display_order": 4
+              "display_order": 4,
+              "strategy_config": {
+                "strategy": "llm_rubric_guidance",
+                "guidance": "Review the extracted text and any supplied policy passages for concrete, identifiable student information or unsafe disclosure, such as names linked to grades, records, contact details, or sensitive circumstances. Blank forms and fictional examples are not actual disclosures. A score of 4 means no confidentiality concern was detected in the reviewed extracted text and stated coverage; it is not a guarantee about the full PDF or legal compliance. Missing policy evidence is uncertainty, not a violation. Give an advisory score, cite a relevant passage or state the exact reviewed coverage/absence, and do not invent citations.",
+                "level_descriptors": [
+                  {"score": 1, "descriptor": "Reviewed material contains concrete, identifiable student information exposed in an unsafe context; advisory human review required."},
+                  {"score": 2, "descriptor": "A specific disclosure or combination of details creates a plausible identification or confidentiality concern needing review."},
+                  {"score": 3, "descriptor": "A concrete minor confidentiality weakness or unsafe collection instruction appears in reviewed text, but no exposed identifiable student record is established; quote the passage."},
+                  {"score": 4, "descriptor": "No confidentiality concern was detected in the reviewed extracted text across stated coverage; this is not a full-PDF or legal guarantee."}
+                ]
+              },
+              "scoring_strategy": "llm_rubric_guidance",
+              "scoring_rule": "Score 1 for concrete identifiable student information disclosed unsafely; 2 for a specific disclosure or details creating plausible identification risk; 3 only for a concrete minor confidentiality weakness or unsafe collection instruction in reviewed text, without an established exposed identifiable student record; quote the passage. If no concern is detected, score 4 even when extracted-text coverage is limited and state that scope. Blank forms and fictional examples are not disclosures. Missing policy is uncertainty, not a violation. Scores 1–4 are advisory, never a full-PDF or legal guarantee: cite a passage or state reviewed coverage/absence, and do not invent citations."
             },
             {
               "criterion_code": "ITSO-05",
               "title": "Teacher and Student Rights",
               "description": "The material secures the right of the teacher and students.",
-              "display_order": 5
+              "display_order": 5,
+              "strategy_config": {
+                "strategy": "llm_rubric_guidance",
+                "guidance": "Assess observable recognition of teacher and student contributions, credit, and permitted educational use in the supplied material and reviewed policy passages. Before publishing contributions, look for authorization or a stated lawful basis. Flag concrete unfair rights waivers or uncredited use; distinguish faculty ownership from student rights. Missing policies or agreements create uncertainty, not proof of a violation. Give an advisory score, cite a relevant passage or state reviewed coverage/absence, and do not invent citations or make legal conclusions.",
+                "level_descriptors": [
+                  {"score": 1, "descriptor": "Concrete evidence shows contributions are used or published without required authorization/lawful basis, or rights are unfairly waived; human review required."},
+                  {"score": 2, "descriptor": "Specific credit, permitted-use, authorization, or rights language raises a material concern needing clarification."},
+                  {"score": 3, "descriptor": "No concrete rights concern was found in reviewed material, but credit, permitted use, or publication authorization remains unclear."},
+                  {"score": 4, "descriptor": "Reviewed evidence supports appropriate teacher/student credit and permitted educational use, with authorization or lawful basis before publication and no unfair waiver."}
+                ]
+              },
+              "scoring_strategy": "llm_rubric_guidance",
+              "scoring_rule": "Score 1 for concrete unapproved/unlawful publication or unfair rights waiver; 2 for specific credit, permitted-use, authorization, or rights concerns needing clarification; 3 when no concrete concern is found but evidence is unclear; 4 when reviewed evidence supports teacher/student credit, permitted educational use, authorization or lawful basis before publication, and no unfair waiver. Distinguish faculty ownership from student rights. Missing policy/agreement is uncertainty, not a violation. Scores 1–4 are advisory: cite a passage or state reviewed coverage/absence, never invent citations or make legal conclusions."
             }
           ]
         }
-      ]
+      ],
+      "adapter_key": "itso",
+      "adapter_version": 3
     }
   ]
 }

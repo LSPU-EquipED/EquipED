@@ -24,7 +24,11 @@ from equiped_harness.itso.response import (
 from equiped_harness.runtime.context import ITSOExecutionContext
 from equiped_harness.transport import CompletionResult
 from jsonschema import Draft202012Validator
-from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
+from server.tests.agents.itso.conftest_helper import (
+    make_itso_test_snapshot,
+    public_reference_context,
+    v3_response_for_prompt,
+)
 
 
 def _payload(summary="summary"):
@@ -207,6 +211,7 @@ class _CapturingClient:
 
     def __init__(self, responses):
         self.responses = iter(responses)
+        self.last_response = ""
         self.prompts = []
         self.deadlines = []
 
@@ -221,8 +226,16 @@ class _CapturingClient:
     ):
         self.prompts.append(prompt)
         self.deadlines.append(deadline)
+        response = next(self.responses, self.last_response)
+        self.last_response = response
         return CompletionResult(
-            next(self.responses), "primary", 1, 1, 1, "stop", attempts=1
+            v3_response_for_prompt(prompt, response),
+            "primary",
+            1,
+            1,
+            1,
+            "stop",
+            attempts=1,
         )
 
 
@@ -236,16 +249,19 @@ def _context(client):
         ),
         form_snapshot=make_itso_test_snapshot(eval_id),
         llm_client=client,
-        precomputed_context={"syllabus": ["reference"]},
+        precomputed_context={
+            **public_reference_context(),
+            "syllabus": ("reference",),
+        },
     )
 
 
-def _settings(budget=8000):
+def _settings(budget=100000):
     class Settings:
         agent_total_prompt_budget_chars = budget
         agent_max_chunks = 12
         agent_max_excerpt_chars = 800
-        agent_prompt_budget_chars = 5000
+        agent_prompt_budget_chars = 50000
         agent_small_doc_threshold = 6
         llm_max_new_tokens = 2048
         llm_request_timeout_seconds = 120
@@ -262,10 +278,9 @@ def test_real_execution_regenerates_once_with_bounded_prompts(
     harness_config(_settings())
     client = _CapturingClient(["invalid", json.dumps(_payload())])
     result = run_itso_execution(_context(client))
-    assert len(client.prompts) == 2
-    assert all(len(prompt) <= 8000 for prompt in client.prompts)
-    assert client.prompts[1].startswith(client.prompts[0])
-    assert "invalid" not in client.prompts[1]
+    assert len(client.prompts) == 3
+    assert all(len(prompt) <= 100000 for prompt in client.prompts)
+    assert "invalid" not in str(client.prompts[1])
     assert client.deadlines[1] <= client.deadlines[0]
     assert result.raw_response is None
     assert result.metadata["response_schema_version"] == "itso-response-v1"

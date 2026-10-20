@@ -79,11 +79,26 @@ def test_fresh_seed_populates_published_and_activations(db_session):
     assert gad_form.version_number == 1
     assert len(gad_form.domains[0].criteria) == 5
 
-    # ITSO v1 published and active
+    # ITSO evidence verification v2 published and active
     itso_form = get_active_form_definition(db_session, "itso")
     assert itso_form is not None
-    assert itso_form.version_number == 1
-    assert len(itso_form.domains[0].criteria) == 5
+    assert itso_form.version_number == 2
+    assert itso_form.adapter_key == "itso"
+    assert itso_form.adapter_version == 2
+    itso_criteria = [
+        criterion for domain in itso_form.domains for criterion in domain.criteria
+    ]
+    assert {criterion.criterion_code for criterion in itso_criteria} == {
+        "ITSO-01",
+        "ITSO-02",
+        "ITSO-03",
+        "ITSO-04",
+        "ITSO-05",
+    }
+    assert all(
+        criterion.strategy_config.strategy == "evidence_verification"
+        for criterion in itso_criteria
+    )
 
     # Check that system seed actors are None
     activations = db_session.query(RubricAgentActivation).all()

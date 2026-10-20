@@ -111,8 +111,13 @@ def _domain_pct(subtotal: float | None) -> float:
 
 def _composite_from_domains(
     domain_scores: dict[str, dict[str, Any]],
-) -> tuple[float, float, str | None]:
+) -> tuple[float | None, float | None, str | None]:
     """Compute final composite (pct), overall (1-4), and adjectival rating."""
+    itso = domain_scores.get("itso", {})
+    if itso.get("contract") == "itso_evidence.v1" and (
+        itso.get("subtotal") is None or itso.get("status") != "OK"
+    ):
+        return None, None, None
     weighted_pct = sum(
         AGENT_WEIGHTS[agent] * _domain_pct(domain.get("subtotal"))
         for agent, domain in domain_scores.items()
@@ -131,7 +136,16 @@ def _composite_from_domains(
 def _completed_domain_count(domain_scores: dict[str, Any] | None) -> int:
     if not isinstance(domain_scores, dict):
         return 0
-    return sum(1 for agent in PROGRESSIVE_AGENT_IDS if agent in domain_scores)
+    return sum(
+        1
+        for agent in PROGRESSIVE_AGENT_IDS
+        if agent in domain_scores
+        and not (
+            agent == "itso"
+            and domain_scores[agent].get("contract") == "itso_evidence.v1"
+            and domain_scores[agent].get("execution_status") != "COMPLETED"
+        )
+    )
 
 
 def upsert_monitoring_matrix(
@@ -260,7 +274,11 @@ def _upsert_progressive_domain(
     except Exception:
         existing = None
 
-    if existing is None:
+    incoming_itso_v2 = any(
+        isinstance(payload, dict) and payload.get("contract") == "itso_evidence.v1"
+        for payload in incoming_map.values()
+    )
+    if existing is None and not incoming_itso_v2:
         doc = db.get(Document, document_id)
         if doc is not None and getattr(doc, "source_type", None) == "slm":
             existing = (
@@ -345,9 +363,13 @@ def _upsert_progressive_domain(
         if isinstance(existing.domain_scores_json, dict)
         else {}
     )
-    if is_new_domain or pre_merge_count == 0:
+    if incoming_map.get("itso", {}).get("contract") == "itso_evidence.v1":
+        prior_itso = (existing.domain_scores_json or {}).get("itso", {})
+        prior_flags = prior_itso.get("issue_count", 0)
+        existing.flag_count = max(0, prior_total - int(prior_flags)) + incoming_flags
+    elif is_new_domain or pre_merge_count == 0:
         existing.flag_count = prior_total + incoming_flags
-    # else: re-evaluation of an existing domain — retain prior total.
+    # Legacy re-evaluations retain the prior total; v2 replaces its own counts.
     existing.domain_scores_json = current
     if completed >= 4:
         synthesized, _overall, _rating = _composite_from_domains(current)
@@ -384,7 +406,10 @@ def _upsert_failure(
     except Exception:
         existing = None
 
-    if existing is None:
+    incoming_itso_v2 = (domain_scores or {}).get("itso", {}).get(
+        "contract"
+    ) == "itso_evidence.v1"
+    if existing is None and not incoming_itso_v2:
         doc = db.get(Document, document_id)
         if doc is not None and getattr(doc, "source_type", None) == "slm":
             existing = (
@@ -422,6 +447,19 @@ def _upsert_failure(
             )
         else:
             return row
+    if (domain_scores or {}).get("itso", {}).get("contract") == "itso_evidence.v1":
+        current = copy.deepcopy(existing.domain_scores_json or {})
+        prior_flags = current.get("itso", {}).get("issue_count", 0)
+        current["itso"] = copy.deepcopy(domain_scores["itso"])
+        existing.domain_scores_json = current
+        existing.flag_count = (
+            max(0, int(existing.flag_count or 0) - int(prior_flags)) + flag_count
+        )
+        existing.evaluation_id = evaluation_id
+        existing.evaluation_status = "FAILED"
+        existing.synthesized_score = None
+        db.flush()
+        return existing
     completed = _completed_domain_count(
         existing.domain_scores_json
         if isinstance(existing.domain_scores_json, dict)
@@ -469,6 +507,11 @@ def _classify_matrix_score_values(
        - If synthesized_score is None or out of range (< 0.0 or > 100.0),
          it is not passing and adjectival_rating is None.
     """
+    itso = (domain_scores or {}).get("itso", {})
+    if itso.get("contract") == "itso_evidence.v1" and (
+        itso.get("subtotal") is None or itso.get("status") != "OK"
+    ):
+        return None, None, False
     if isinstance(domain_scores, dict) and all(
         agent in domain_scores and isinstance(domain_scores[agent], dict)
         for agent in PROGRESSIVE_AGENT_IDS
@@ -664,9 +707,14 @@ def get_monitoring_matrix(
     )
 
     items = []
+    from server.modules.synthesis.itso_projection import verified_matrix_domains
+
     for row, doc_title in paginated_results:
+        domains = verified_matrix_domains(
+            db, domains=row.domain_scores_json, document_id=row.document_id
+        )
         _overall, adjectival_rating, _is_passing = _classify_matrix_score_values(
-            row.domain_scores_json,
+            domains,
             row.synthesized_score,
         )
         items.append(
@@ -682,7 +730,7 @@ def get_monitoring_matrix(
                 if row.synthesized_score is not None
                 else None,
                 adjectival_rating=adjectival_rating,
-                domain_scores=row.domain_scores_json,
+                domain_scores=domains,
                 flag_count=row.flag_count,
                 feedback_status=row.feedback_status,
                 last_updated=row.last_updated,

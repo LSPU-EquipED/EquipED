@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from typing import Any
 from uuid import UUID, uuid4
 
 from equiped_harness.contracts import (
@@ -18,11 +20,75 @@ from equiped_harness.snapshot_contracts import (
 )
 
 
+def public_reference_context() -> dict[str, tuple[str, ...]]:
+    """Return a minimal bounded adapter-3 public verification report."""
+    report = {
+        "status": "completed",
+        "scope": ["ITSO-01", "ITSO-02"],
+        "bibliography_status": "not_detected",
+        "coverage": {"found": 0, "checked": 0, "skipped": 0, "total": 0},
+        "references": [
+            {
+                "query": "no citation detected",
+                "status": "matched",
+                "source_url": "https://example.org/paper",
+                "title": "Public reference",
+                "excerpt": "Public source passage for verifying citation claims.",
+                "matched_fields": [],
+                "mismatches": [],
+            }
+        ],
+    }
+    return {"public_reference_verification": (json.dumps(report),)}
+
+
+def v3_response_for_prompt(prompt: Any, response: str) -> str:
+    """Narrow legacy five-row fixtures to the adapter-3 envelope in a prompt."""
+    try:
+        payload = json.loads(response)
+        scores = payload["criterion_scores"]
+        rows = list(scores.values()) if isinstance(scores, dict) else scores
+        if not isinstance(rows, list) or len(rows) != 5:
+            return response
+        expected = json.loads(prompt.user_context)["response_example"][
+            "criterion_scores"
+        ]
+        expected_ids = {item["criterion_id"] for item in expected}
+        if not expected_ids:
+            return response
+        if isinstance(scores, dict):
+            payload["criterion_scores"] = {
+                key: value for key, value in scores.items() if key in expected_ids
+            }
+            output_rows = list(payload["criterion_scores"].values())
+        else:
+            payload["criterion_scores"] = [
+                row for row in rows if row.get("criterion_id") in expected_ids
+            ]
+            output_rows = payload["criterion_scores"]
+        if expected_ids <= {"ITSO-01", "ITSO-02"}:
+            for row in output_rows:
+                if row.get("justification") == "justification":
+                    row["justification"] = (
+                        "Verified public reference [source 1]. "
+                        "No bibliography was detected in the supplied text."
+                    )
+        excerpts = json.loads(prompt.user_context)["document_chunks"]
+        if excerpts:
+            for row in output_rows:
+                if not row.get("chunk_ids") or not row.get("evidence"):
+                    row["chunk_ids"] = [excerpts[0]["chunk_id"]]
+                    row["evidence"] = [excerpts[0]["text"]]
+        return json.dumps(payload)
+    except (AttributeError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return response
+
+
 def make_itso_test_snapshot(
     evaluation_id: UUID | None = None,
     criteria_specs: tuple[tuple[str, str], ...] | None = None,
     adapter_key: str = "itso",
-    adapter_version: int = 1,
+    adapter_version: int = 3,
     agent_id: str = "itso",
 ) -> EvaluationFormSnapshotDTO:
     """Build a valid EvaluationFormSnapshotDTO for ITSO test suites."""

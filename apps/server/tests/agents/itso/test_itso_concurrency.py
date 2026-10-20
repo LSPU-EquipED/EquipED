@@ -7,6 +7,7 @@ from uuid import uuid4
 from equiped_harness import ExecutionConfig, execution_scope
 from equiped_harness.itso.agent import ITSO
 from equiped_harness.transport import CompletionResult
+from server.tests.agents.itso.conftest_helper import v3_response_for_prompt
 
 
 class BarrierClient:
@@ -17,9 +18,10 @@ class BarrierClient:
         self.prompts = prompts
 
     def generate(self, prompt, *, temperature, max_new_tokens):
-        self.prompts[self.model] = prompt
+        previous = self.prompts.get(self.model, "")
+        self.prompts[self.model] = previous + str(prompt)
         self.barrier.wait(timeout=3)
-        return _response(self.summary)
+        return v3_response_for_prompt(prompt, _response(self.summary))
 
     def generate_result(
         self,
@@ -66,9 +68,9 @@ def test_shared_instance_real_runs_are_isolated():
     config = ExecutionConfig(
         agent_max_chunks=10,
         agent_max_excerpt_chars=1000,
-        agent_prompt_budget_chars=10000,
         agent_small_doc_threshold=20,
-        agent_total_prompt_budget_chars=10000,
+        agent_total_prompt_budget_chars=32000,
+        agent_prompt_budget_chars=16000,
         llm_max_new_tokens=2048,
         llm_response_mode="json_schema",
     )
@@ -86,7 +88,10 @@ def test_shared_instance_real_runs_are_isolated():
     def run(label, client):
         try:
             eval_id = uuid4()
-            from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
+            from server.tests.agents.itso.conftest_helper import (
+                make_itso_test_snapshot,
+                public_reference_context,
+            )
 
             crit_specs = tuple((f"ITSO-0{i}", f"Title {i}") for i in range(1, 6))
             snapshot = make_itso_test_snapshot(
@@ -98,11 +103,20 @@ def test_shared_instance_real_runs_are_isolated():
                     agent.run(
                         evaluation_id=eval_id,
                         document_id=uuid4(),
-                        chunk_infos=({"chunk_id": label, "text": f"marker-{label}"},),
+                        chunk_infos=(
+                            {
+                                "chunk_id": label,
+                                "text": (
+                                    f"This module contains marker-{label} and "
+                                    "describes information security controls."
+                                ),
+                            },
+                        ),
                         form_snapshot=snapshot,
                         provenance={"precheck_version": label},
                         policy_evidence={"delivery_state": "blocked"},
                         precomputed_context={
+                            **public_reference_context(),
                             "syllabus": [],
                             "curriculum": [],
                         },
@@ -125,10 +139,14 @@ def test_shared_instance_real_runs_are_isolated():
     assert all(not thread.is_alive() for thread in threads)
     assert len(results) == 2
     by_model = {result.model_name: result for result in results}
-    assert by_model["model-one"].summary == "summary-one"
-    assert by_model["model-two"].summary == "summary-two"
-    assert by_model["model-one"].provenance["precheck_version"] == "one"
-    assert by_model["model-two"].provenance["precheck_version"] == "two"
+    for model, summary in (("model-one", "summary-one"), ("model-two", "summary-two")):
+        assert len(by_model[model].generations) == 2
+        assert all(
+            generation.response_json["summary"] == summary
+            for generation in by_model[model].generations
+        )
+    assert by_model["model-one"].provenance["actual_model"] == "model-one"
+    assert by_model["model-two"].provenance["actual_model"] == "model-two"
     assert "marker-one" in prompts["model-one"]
     assert "marker-two" not in prompts["model-one"]
     assert "marker-two" in prompts["model-two"]

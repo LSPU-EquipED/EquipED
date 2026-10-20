@@ -18,6 +18,9 @@ from fastapi import (
 from fastapi import (
     status as http_status,
 )
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from server.core.database import get_db_session
 from server.core.exceptions import InfrastructureUnavailableError
 from server.core.llm import probe_local_model_readiness
@@ -32,6 +35,7 @@ from server.modules.evaluations.exceptions import (
     ForbiddenEvaluationAccessError,
     InvalidEvaluationTargetError,
 )
+from server.modules.evaluations.itso.exceptions import ITSOError
 from server.modules.evaluations.orchestrator import drain_evaluation_queue
 from server.modules.evaluations.schemas import (
     DeskQueueListResponse,
@@ -51,7 +55,29 @@ from server.modules.evaluations.service import (
     list_evaluations,
 )
 
-router = APIRouter(prefix="/evaluations", tags=["evaluations"])
+
+class EvaluationRoute(APIRoute):
+    def get_route_handler(self):
+        original = super().get_route_handler()
+
+        async def handler(request):
+            try:
+                return await original(request)
+            except RequestValidationError:
+                if request.method != "POST":
+                    raise
+                # Validation must never echo the one-use consent nonce.
+                return JSONResponse(
+                    status_code=422,
+                    content={"detail": {"code": "invalid_evaluation_request"}},
+                )
+
+        return handler
+
+
+router = APIRouter(
+    prefix="/evaluations", tags=["evaluations"], route_class=EvaluationRoute
+)
 
 
 @router.post(
@@ -89,6 +115,9 @@ def submit_evaluation(
         )
         background_tasks.add_task(drain_evaluation_queue)
         return response
+    except ITSOError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status, detail={"code": exc.code}) from None
     except InfrastructureUnavailableError:
         raise HTTPException(
             status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
