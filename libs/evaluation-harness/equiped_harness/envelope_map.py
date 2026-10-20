@@ -1,18 +1,18 @@
 """Deterministic snapshot envelope reconstruction."""
 
-from .contracts import CriterionDefinition
-from .snapshot_contracts import EvaluationFormSnapshotDTO
+from equiped_harness.contracts import CriterionDefinition
+from equiped_harness.contracts.snapshots import EvaluationFormSnapshotDTO
 
 _SUPPORTED_AGENTS = ("sme", "coordinator")
 
 
 def _pack_domains_for(agent_id: str):
     if agent_id == "sme":
-        from equiped_harness.sme.packing import pack_domains
+        from equiped_harness.agents.sme.packing import pack_domains
 
         return pack_domains
     if agent_id == "coordinator":
-        from equiped_harness.coordinator.packing import pack_domains
+        from equiped_harness.agents.coordinator.packing import pack_domains
 
         return pack_domains
     raise ValueError(

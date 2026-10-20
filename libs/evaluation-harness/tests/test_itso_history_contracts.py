@@ -1,7 +1,7 @@
 """Historical ITSO snapshot hashes and stored-result validation remain stable."""
 
 import pytest
-from equiped_harness.itso.history_contracts import (
+from equiped_harness.agents.itso.compatibility.contracts import (
     ITSO_CRITERION_IDS,
     CanonicalSourceSnapshot,
     CriterionAssessment,

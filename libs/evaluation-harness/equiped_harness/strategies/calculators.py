@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from ..contracts import (
+from equiped_harness.contracts import (
     CountBandConfig,
     FrozenContractModel,
     GroundedInstanceMeasurement,

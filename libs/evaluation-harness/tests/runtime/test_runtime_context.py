@@ -3,7 +3,8 @@
 from uuid import uuid4
 
 import pytest
-from equiped_harness.runtime.context import ITSOExecutionContext, thaw
+from equiped_harness.agents.itso.contracts import ITSOExecutionContext
+from equiped_harness.runtime.context import thaw
 
 
 def test_nested_context_is_immutable_and_thaw_is_isolated():

@@ -1,10 +1,13 @@
 # EquipED evaluation harness
 
-Installable, in-process Python package for the actual SME, Coordinator, GAD and
-ITSO evaluation pipelines, laid out directly under `equiped_harness/` with specialist domains at `equiped_harness/{sme,coordinator,gad,itso}/`. Owns prompts, pure scoring, semantic rubric contracts,
-strategy calculators, immutable snapshot hashing and shared result contracts.
-Backend admission, authorization, evidence retrieval, transport security/retries,
-relational identity validation, rubric activation and persistence stay server-owned.
+Installable, in-process Python package for SME, Coordinator, GAD and ITSO.
+Specialists live under `equiped_harness/agents/`; shared contracts and runtime are
+independent of their executable pipelines. The package owns prompts, semantic
+scoring/validation, evidence interpretation, reporting and specialist tools.
+Server admission, authorization, active rubric selection, local data storage,
+model resolution, durable execution and persistence remain application-owned.
+The public API rechecks snapshot integrity, manifest compatibility and evaluation
+binding before any tool or model call.
 
 ## Supported execution seam
 
@@ -25,24 +28,43 @@ result = evaluate(request, client, ExecutionConfig())
 
 The caller supplies an immutable verified snapshot, prepared inputs, explicit
 execution controls and a client implementing `ModelClient.generate_result` with
-neutral `ResponseContract` and shared `CompletionResult`. No default transport,
-backend callbacks, environment loader or network integration is provided.
-Production integration lives in `apps/server/modules/evaluations/harness/`.
-Its `transport.py` wraps the server core client with `HarnessModelClient` and
-builds `ExecutionConfig` from server settings. Its public service exports
-`Supervisor`, `get_envelope_criteria_map`, and `get_criterion_envelope_key`;
-the latter two retain backend DB access. Direct specialist classes remain exported;
-call them inside `execution_scope(config)` when explicit helper controls are needed.
-Scopes reset on success/failure and are thread-local; workers must install their
-own scope. Request mappings are recursively copied and frozen.
+neutral `ResponseContract` and shared `CompletionResult`. Production integration
+uses flat server `evaluations/{runner,dispatch,context,harness_adapter}.py` modules.
+The adapter translates host configuration and wraps the core model transport.
+Database-backed envelope lookup belongs to server `rubrics/envelopes.py`.
+There are no server imports, database callbacks, environment loaders or implicit
+model clients in the library. Request mappings are copied and frozen; execution
+scopes reset on exit and are installed independently in each worker.
 
-Public helpers include `envelope_criteria_map_from_snapshot`,
-`COORDINATOR_SCORING_RULES`, and `equiped_harness.scoring` for result consumers.
+For ITSO, provide explicit authorized tools. The harness performs search and page
+retrieval before its two model requests and replaces supplied cached reports:
+
+```python
+from equiped_harness import ExecutionControl, ToolConfig
+from equiped_harness.tools.http import PinnedHTTPS
+
+result = evaluate(
+    request, client, ExecutionConfig(),
+    tools=ToolConfig(enabled=external_access_authorized, transport=PinnedHTTPS()),
+    control=ExecutionControl(),
+)
+```
+
+Disabled or missing required tools fail before model execution. Query safety,
+provider/redirect/IP validation and byte/time/request limits remain enforced by
+the tools. Cancellation is cooperative; a running call retains its bounded
+transport deadline. Local institutional policy retrieval remains residency-gated
+in the application and follows library-owned policy plans. Unavailable policy
+text remains a disclosed limitation.
+
+Public helpers include `envelope_criteria_map_from_snapshot` and
+`COORDINATOR_SCORING_RULES`. Specialist scoring helpers are owned by their agent;
+shared score-band validation is in `runtime/scoring.py`.
 Snapshot UUID binding, versions, provenance, repair and failure behavior are
 preserved. Coordinator v3 retains official A-05 and advisory-only C-01; extraction
 neither activates a rubric version nor changes official synthesis/export policy.
 
-Coordinator's public class lives in `coordinator/agent.py`. Current orchestration
+Coordinator's public class lives in `agents/coordinator/agent.py`. Current orchestration
 is in `engine.py`, with source catalogs (`catalog.py`), prompt construction
 (`task_prompts.py`), bounded JSON repair (`task_execution.py`) and deterministic
 measurement validation (`measurements.py`) separated by responsibility.
@@ -57,7 +79,7 @@ before assessment/curriculum matching. Known deterministic objectives are retain
 when only assessment headings need semantic classification. Every source window
 is visited; there is no excerpt sampling or model-authored replacement text.
 Unresolved disagreement, missing objectives, corrupt/truncated input and exhausted
-configured budgets fail explicitly. Readable extracted text is required; this pure
+configured budgets fail explicitly. Readable extracted text is required; the
 package does not perform OCR or reconstruct lost PDF geometry.
 
 All source-classification calls are captured in generations with the existing
@@ -67,17 +89,19 @@ are partitioned into bounded exact spans, preserving later content. Absent
 count/ratio evidence scores 1, and stored ratio facts retain short-sample settings
 for deterministic replay. C-01 remains advisory and excluded from the official mean.
 
-Historical SME/GAD execution remains isolated in `legacy.py`, using `execution.py`,
-`prompt.py`, `response.py`, `scoring.py` and `packing.py`. These are still required
-by adapter-v1/v2 recovery and legacy-shaped v3 responses; no supported historical
-contract, snapshot hash, manifest default or rubric activation is removed.
+Supported older execution contracts remain with their specialist. Coordinator's
+`legacy.py` still serves supported adapter/replay paths and is retained. Retired
+ITSO versions are read-only; historical contracts never enable new evaluations.
+Their database models and authenticated readers live in the server's
+`modules/itso_assessments/`; current scored results use the standard evaluation
+results endpoint.
 
 ```mermaid
 graph TD
-    Server[Server evaluations/harness] -->|Prepared request| Harness[Pure harness]
-    Harness -->|Neutral contract| Adapter[Server transport adapter]
-    Adapter --> Core[Core model transport]
-    Harness -->|Result| Storage[Server integrity and persistence]
+    Server[Server authorized inputs and durable job] --> Harness[Specialist harness]
+    Harness --> Tools[Library search and page tools]
+    Harness --> Adapter[Explicit model client]
+    Harness --> Storage[Server integrity and persistence]
 ```
 
 ## Install and verify
@@ -93,6 +117,8 @@ From the repository root:
 pnpm harness:test
 pnpm server:lint
 pnpm server:format
+# Run independently of the server environment:
+uv run --project libs/evaluation-harness pytest libs/evaluation-harness/tests
 # With dependencies already installed:
 apps/server/.venv/bin/python -m pytest libs/evaluation-harness/tests
 uv build --offline libs/evaluation-harness
@@ -100,9 +126,9 @@ uv build --offline libs/evaluation-harness
 
 Tests cover actual four-specialist fake-client execution, deep immutability,
 configuration/thread isolation, repair, frozen JSON/hash compatibility and
-installed-package imports without the backend path. Do not add server, ORM,
-retrieval, network or environment dependencies here.
+installed-package imports without the backend path. Server, ORM and environment dependencies are forbidden. Network operations are
+restricted to explicit tool modules; tests use scripted transports.
 
-Current ITSO scored execution uses adapter 3 only. Adapters 1 and 2 remain in the manifest registry for immutable historical snapshot validation; the harness does not execute them. The read-only `itso.history_contracts` module preserves historical source hashes, spans, evidence facts, and stored-result validation. The v3 pipeline uses the existing rubric-guidance pipeline and two fixed role-separated requests under one model deadline: criteria 1–2 receive locally selected verbatim module excerpts and independent public sources; criteria 3–5 receive module text. Required backend public-reference tools supply a bounded completed report through `precomputed_context.public_reference_verification`; the pure harness owns no network calls. Missing or unusable reports fail before model transport. Both groups must pass before the canonical five-score result completes, and both actual model generations retain the existing score response contract. Legacy internal-only templates and local precheck signals are not part of current ITSO execution.
+Current ITSO scored execution uses adapter 3 only. Adapters 1 and 2 remain in the manifest registry for immutable historical snapshot validation; the harness does not execute them. The read-only `agents.itso.compatibility.contracts` module preserves historical source hashes, spans, evidence facts, and stored-result validation. The v3 pipeline uses the existing rubric-guidance pipeline and two fixed role-separated requests under one model deadline: criteria 1–2 receive locally selected verbatim module excerpts and independent public sources; criteria 3–5 receive module text. Required harness-owned public-reference tools create a fresh bounded report before the model stages. The low-level prepared-report seam is used for fixture-based pipeline tests; production calls the public execution API. Missing or unusable reports fail before model transport. Both groups must pass before the canonical five-score result completes, and both actual model generations retain the existing score response contract. Legacy internal-only templates and local precheck signals are not part of current ITSO execution.
 
 ITSO source citations may use a full retrieved URL or a resolvable `[source N]` report index; every cited index retains a URL mapping in the bounded saved reasoning, with one repair before failure if mappings cannot fit. Reports contain at most five rows. With defined scoring rules, source comparison and detected source acknowledgements/authorship require verbatim module quotations. The document envelope receives validated advisory source findings, selected exact rights/privacy passages, actual excerpt coverage, and available residency-gated local policy clauses. No detected confidentiality concern yields advisory 4 for reviewed extracted text; incomplete ownership or rights evidence supports provisional 3. Quotes for concrete concerns remain mandatory. Policy unavailability is a disclosed limitation and does not block normal evaluation.

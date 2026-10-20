@@ -4,9 +4,9 @@ from dataclasses import replace
 
 import pytest
 from equiped_harness import ExecutionConfig, evaluate
-from equiped_harness.coordinator.objective_gauging import inventory_source
+from equiped_harness.agents.coordinator.objective_gauging import inventory_source
+from equiped_harness.agents.coordinator.validation import validate_coordinator_coverage
 from equiped_harness.exceptions import AgentExecutionError
-from equiped_harness.scoring import validate_coordinator_coverage
 from test_evaluate import CURRICULUM, FakeClient, prepared_request
 
 # Same heading breaks, explicit U+2022 split markers, syntax, wraps and terminator.

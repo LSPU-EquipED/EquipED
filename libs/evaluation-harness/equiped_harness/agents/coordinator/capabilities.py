@@ -1,0 +1,145 @@
+"""Static capability manifests for this specialist."""
+
+from equiped_harness.contracts.capabilities import (
+    AgentCapabilityManifest,
+    StrategyCapability,
+)
+
+COORDINATOR_MANIFEST_V1 = AgentCapabilityManifest(
+    agent_id="coordinator",
+    adapter_key="coordinator",
+    adapter_version=1,
+    prompt_budget_setting="agent_total_prompt_budget_chars",
+    supported_strategies=("curriculum_alignment",),
+    capabilities=(
+        StrategyCapability(
+            strategy="curriculum_alignment",
+            mode=None,
+            measurement_shape="curriculum_alignment",
+        ),
+    ),
+    supported_measurement_shapes=("curriculum_alignment",),
+    min_criteria=1,
+    max_criteria=1,
+    default_prompt_budget_chars=32000,
+    allowed_criterion_codes=("A-05",),
+    required_criterion_strategies=(("A-05", "curriculum_alignment"),),
+)
+
+COORDINATOR_MANIFEST_V2 = AgentCapabilityManifest(
+    agent_id="coordinator",
+    adapter_key="coordinator",
+    adapter_version=2,
+    prompt_budget_setting="agent_total_prompt_budget_chars",
+    supported_strategies=(
+        "curriculum_alignment",
+        "llm_rubric_guidance",
+        "count_band",
+        "ratio_band",
+    ),
+    supported_count_modes=("minimum_count",),
+    supported_ratio_modes=("coverage_percentage",),
+    capabilities=(
+        StrategyCapability(
+            strategy="curriculum_alignment",
+            mode=None,
+            measurement_shape="curriculum_alignment",
+        ),
+        StrategyCapability(
+            strategy="llm_rubric_guidance",
+            mode=None,
+            measurement_shape="grounded_score",
+        ),
+        StrategyCapability(
+            strategy="count_band",
+            mode="minimum_count",
+            measurement_shape="grounded_instances",
+        ),
+        StrategyCapability(
+            strategy="ratio_band",
+            mode="coverage_percentage",
+            measurement_shape="qualifying_units",
+        ),
+    ),
+    supported_measurement_shapes=(
+        "curriculum_alignment",
+        "grounded_score",
+        "grounded_instances",
+        "qualifying_units",
+    ),
+    min_criteria=10,
+    max_criteria=10,
+    default_prompt_budget_chars=32000,
+    allowed_criterion_codes=(
+        "OP-01",
+        "OP-02",
+        "OP-03",
+        "OP-04",
+        "OP-05",
+        "A-01",
+        "A-02",
+        "A-03",
+        "A-04",
+        "A-05",
+    ),
+    required_criterion_strategies=(("A-05", "curriculum_alignment"),),
+)
+
+COORDINATOR_MANIFEST_V3 = AgentCapabilityManifest(
+    agent_id="coordinator",
+    adapter_key="coordinator",
+    adapter_version=3,
+    prompt_budget_setting="agent_total_prompt_budget_chars",
+    supported_strategies=(
+        "llm_rubric_guidance",
+        "count_band",
+        "ratio_band",
+        "objective_gauging",
+    ),
+    supported_count_modes=("minimum_count",),
+    supported_ratio_modes=("coverage_percentage",),
+    capabilities=(
+        StrategyCapability(
+            strategy="llm_rubric_guidance",
+            mode=None,
+            measurement_shape="grounded_score",
+        ),
+        StrategyCapability(
+            strategy="count_band",
+            mode="minimum_count",
+            measurement_shape="grounded_instances",
+        ),
+        StrategyCapability(
+            strategy="ratio_band",
+            mode="coverage_percentage",
+            measurement_shape="qualifying_units",
+        ),
+        StrategyCapability(
+            strategy="objective_gauging",
+            mode=None,
+            measurement_shape="objective_gauging",
+        ),
+    ),
+    supported_measurement_shapes=(
+        "grounded_score",
+        "grounded_instances",
+        "qualifying_units",
+        "objective_gauging",
+    ),
+    min_criteria=10,
+    max_criteria=10,
+    default_prompt_budget_chars=32000,
+    allowed_criterion_codes=(
+        "OP-01",
+        "OP-02",
+        "OP-03",
+        "OP-04",
+        "OP-05",
+        "A-01",
+        "A-02",
+        "A-03",
+        "A-04",
+        "A-05",
+    ),
+    required_criterion_strategies=(("A-05", "objective_gauging"),),
+)

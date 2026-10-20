@@ -6,13 +6,13 @@ import inspect
 import threading
 from typing import Any
 
-from equiped_harness.config import current_execution_config
 from equiped_harness.exceptions import (
     AgentConfigurationError,
     AgentLLMError,
     error_reference,
 )
-from equiped_harness.transport import (
+from equiped_harness.runtime.config import current_execution_config
+from equiped_harness.runtime.model import (
     CompletionResult,
     ResponseContract,
     parse_json_payload,

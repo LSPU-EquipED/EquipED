@@ -20,6 +20,7 @@
 - Frontend comprises two feature-driven React applications: `apps/faculty` and `apps/admin`, built on shared libraries under `libs/*` (`@equiped/types`, `@equiped/api-client`, `@equiped/ui`, `@equiped/auth`). Features within each app remain self-contained with no cross-feature imports.
 - In-process durable evaluation admission and recovery: Layer 3 specialist agent outputs are persisted to the database, followed by deterministic Layer 4 synthesis producing the terminal monitoring matrix. No further automated layers run.
 - Module and feature boundaries are strictly scoped.
+- Specialist harnesses and their public-reference tool workflows belong to `libs/evaluation-harness`; the server owns authorized data access, durable job execution and persistence. Agent pipelines never depend on server modules.
 - No external message queues (e.g. Celery/Redis) or distributed execution systems may be introduced without explicit user approval and corresponding updates to authoritative code, tests, and product documentation.
 
 ## Working Rules

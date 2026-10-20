@@ -1,0 +1,195 @@
+"""Envelope LLM transport and repair execution for SME."""
+
+from __future__ import annotations
+
+import logging
+import time
+from typing import Any
+
+from equiped_harness.agents.sme.prompt import build_envelope_prompt_and_source
+from equiped_harness.agents.sme.response import (
+    build_envelope_schema,
+    parse_and_validate_envelope_response,
+)
+from equiped_harness.agents.sme.scoring import score_envelope
+from equiped_harness.contracts import (
+    CountBandConfig,
+    CriterionDefinition,
+    LlmRubricGuidanceConfig,
+    RatioBandConfig,
+)
+from equiped_harness.contracts.results import CriterionScore
+from equiped_harness.exceptions import AgentExecutionError, AgentLLMError
+from equiped_harness.runtime.config import current_execution_config
+from equiped_harness.runtime.llm import RunLLMClient, error_reference
+from equiped_harness.runtime.model import ResponseContract
+from equiped_harness.runtime.prompts import AgentPrompt, build_diagnostic_repair_prompt
+from equiped_harness.runtime.slicing import GAP_MARKER
+
+logger = logging.getLogger(__name__)
+
+_FALLBACK_EXPLANATION = (
+    "Evaluation unverified: LLM output could not be grounded in source text"
+)
+
+
+def _fallback_evidence(source_packet: str, max_chars: int = 500) -> str:
+    """Return a safe grounded snippet covering fallback measurements."""
+    for segment in (source_packet or "").split(GAP_MARKER):
+        cleaned = segment.replace(GAP_MARKER.strip(), " ").strip()
+        if cleaned:
+            return cleaned[:max_chars].strip() or cleaned[:max_chars]
+    return "Source text unavailable for grounding."
+
+
+def _build_fallback_parsed(
+    criteria: tuple[CriterionDefinition, ...],
+    source_packet: str,
+) -> dict[str, Any]:
+    """Build baseline measurements covering every envelope criterion."""
+    evidence = _fallback_evidence(source_packet)
+    measurements: list[dict[str, Any]] = []
+    for crit in criteria:
+        config = crit.strategy_config
+        base: dict[str, Any] = {
+            "criterion_id": crit.criterion_code,
+            "criterion_title": crit.title,
+        }
+        if isinstance(config, LlmRubricGuidanceConfig):
+            measurements.append(
+                {
+                    **base,
+                    "score": 1,
+                    "evidence": evidence,
+                    "reasoning": _FALLBACK_EXPLANATION,
+                }
+            )
+        elif isinstance(config, CountBandConfig):
+            measurements.append(
+                {**base, "instances": [], "summary": _FALLBACK_EXPLANATION}
+            )
+        elif isinstance(config, RatioBandConfig):
+            measurements.append(
+                {
+                    **base,
+                    "total_units": [],
+                    "qualifying_unit_ids": [],
+                    "has_measurable_content": False,
+                    "summary": _FALLBACK_EXPLANATION,
+                }
+            )
+        else:
+            measurements.append(
+                {**base, "instances": [], "summary": _FALLBACK_EXPLANATION}
+            )
+    return {"summary": _FALLBACK_EXPLANATION, "criterion_measurements": measurements}
+
+
+def execute_envelope(
+    envelope_idx: int,
+    criteria: tuple[CriterionDefinition, ...],
+    client: RunLLMClient,
+    canonical_source_text: str,
+    *,
+    prompt_preamble: str | None = None,
+    temperature: float | None = None,
+    deadline: float | None = None,
+) -> tuple[tuple[CriterionScore, ...], AgentPrompt, dict[str, Any], str]:
+    """Execute a single SME envelope call with one repair on validation failure.
+
+    The returned status is one of ``"ok"`` (first attempt validated),
+    ``"repaired"`` (validation failed once, the repair attempt produced a
+    real, validated LLM response), or ``"fallback"`` (both attempts failed
+    and the response is a synthetic placeholder, not real model output).
+    """
+    settings = current_execution_config()
+    prompt_budget = settings.sme_total_prompt_budget_chars
+
+    prompt, source_packet = build_envelope_prompt_and_source(
+        criteria,
+        canonical_source_text=canonical_source_text,
+        prompt_budget=prompt_budget,
+        prompt_preamble=prompt_preamble,
+    )
+
+    if getattr(settings, "llm_response_mode", "json_object") == "json_schema":
+        schema = build_envelope_schema(criteria)
+        contract = ResponseContract.json_schema(
+            schema, name=f"sme_envelope_{envelope_idx}"
+        )
+    else:
+        contract = ResponseContract.json_object()
+
+    temp = (
+        temperature
+        if temperature is not None
+        else settings.get_agent_temperature("sme")
+    )
+    req_deadline = deadline or (
+        time.monotonic() + float(getattr(settings, "llm_request_timeout_seconds", 120))
+    )
+
+    validation_error: AgentExecutionError | None = None
+    parsed: dict[str, Any] | None = None
+    try:
+        completion = client.generate_result(
+            prompt,
+            temperature=temp,
+            max_new_tokens=settings.llm_max_new_tokens,
+            deadline=req_deadline,
+            response_contract=contract,
+        )
+        try:
+            parsed = parse_and_validate_envelope_response(
+                completion.content, criteria, source_packet
+            )
+        except AgentExecutionError as exc:
+            validation_error = exc
+    except AgentLLMError as exc:
+        if str(exc) != "LLM output was truncated":
+            raise
+        validation_error = AgentExecutionError("SME response was truncated")
+
+    envelope_status = "ok"
+    if validation_error is not None:
+        logger.info(
+            "[SME_REPAIR] envelope=%d category=%s reference=%s",
+            envelope_idx,
+            type(validation_error).__name__,
+            error_reference(validation_error),
+        )
+        repair_prompt = build_diagnostic_repair_prompt(
+            prompt, validation_error, total_budget=prompt_budget
+        )
+
+        repaired_completion = client.generate_result(
+            repair_prompt,
+            temperature=temp,
+            max_new_tokens=settings.llm_max_new_tokens,
+            deadline=req_deadline,
+            response_contract=contract,
+        )
+        try:
+            parsed = parse_and_validate_envelope_response(
+                repaired_completion.content, criteria, source_packet
+            )
+            envelope_status = "repaired"
+        except AgentExecutionError as second_exc:
+            if "invalid JSON" in str(second_exc) or "JSON" in str(second_exc):
+                raise
+            logger.warning(
+                "[SME_FALLBACK] envelope=%d category=%s reference=%s",
+                envelope_idx,
+                type(second_exc).__name__,
+                error_reference(second_exc),
+            )
+            parsed = _build_fallback_parsed(criteria, source_packet)
+            envelope_status = "fallback"
+
+    if parsed is None:
+        raise AgentExecutionError("SME response validation produced no result")
+    scores = score_envelope(criteria, parsed)
+    return scores, prompt, parsed, envelope_status
+
+
+__all__ = ["execute_envelope"]
