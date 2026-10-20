@@ -121,6 +121,9 @@ describe("mounted specialist ITSO vertical", () => {
             page: 1,
             page_size: 100,
           });
+        if (url.endsWith("/evaluations/evaluation-1/results")) {
+          return json({ detail: { code: "unsupported_version" } }, 409);
+        }
         if (url.endsWith("/evaluations/evaluation-1/assessment")) {
           const assessment = assessmentFixture();
           assessment.execution_status = status;
@@ -155,7 +158,7 @@ describe("mounted specialist ITSO vertical", () => {
         ),
       ).toHaveLength(5);
       expect(fetcher.mock.calls.some(([url]) => url.endsWith("/results"))).toBe(
-        false,
+        true,
       );
       fireEvent.click(screen.getByRole("button", { name: "Re-evaluate" }));
       expect(

@@ -1,10 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { alignmentApi } from '../api/syllabusAlignment.api';
-import {
-  deriveSyllabusMetrics,
-  type StatusFilter,
-} from '../utils/syllabusFiltering';
+import type { StatusFilter } from '../types';
 
 export function useSyllabusAlignmentList(pageSize = 10) {
   const [page, setPage] = useState(1);
@@ -36,32 +33,19 @@ export function useSyllabusAlignmentList(pageSize = 10) {
         : false,
   });
 
-  const stats = slms.data?.stats;
   const total = slms.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const rawItems = slms.data?.items ?? [];
-
-  const metrics = useMemo(() => {
-    return deriveSyllabusMetrics(stats, rawItems);
-  }, [stats, rawItems]);
-
-  const filteredItems = rawItems;
 
   return {
     page,
     setPage,
     search,
-    setSearch,
     handleSearchChange,
     statusFilter,
-    setStatusFilter,
     handleStatusFilterChange,
     slms,
-    stats,
     total,
     totalPages,
-    items: rawItems,
-    metrics,
-    filteredItems,
+    items: slms.data?.items ?? [],
   };
 }

@@ -15,10 +15,10 @@ import {
   cn,
   type DropdownOption,
 } from "@equiped/ui";
-import syllabusIllustration from "../../../assets/illustrations/syllabus-check.svg";
+import syllabusIllustration from "../../../../assets/illustrations/syllabus-check.svg";
 import { SyllabusModuleRow } from "../components/SyllabusModuleRow";
 import { useSyllabusAlignmentList } from "../hooks/useSyllabusAlignmentList";
-import type { StatusFilter } from "../utils/syllabusFiltering";
+import type { StatusFilter } from "../types";
 
 const STATUS_OPTIONS: DropdownOption<StatusFilter>[] = [
   { value: "ALL", label: "All checks" },

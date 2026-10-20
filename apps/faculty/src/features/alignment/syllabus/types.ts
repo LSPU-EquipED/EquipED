@@ -1,5 +1,6 @@
 export type AlignmentProcessingStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 export type AlignmentLevel = 'MEETS' | 'PARTIALLY_MEETS' | 'DOES_NOT_MEET' | 'UNAVAILABLE';
+export type StatusFilter = 'ALL' | 'MEETS' | 'PARTIALLY_MEETS' | 'ATTENTION' | 'PENDING';
 
 export type TopicEvidence = {
   topic_id: string;

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { itsoApi } from "@equiped/api-client";
+import { isApiError, itsoApi } from "@equiped/api-client";
 import type { AssessmentRead, TargetAgent } from "@equiped/types";
 import { evaluationApi } from "../api/evaluation.api";
 
@@ -14,12 +14,25 @@ export function useEvaluationResults(
       evaluationId,
       agent === "itso" ? "assessment" : "legacy",
     ],
-    queryFn: ({ signal }) =>
-      agent === "itso"
-        ? itsoApi.getAssessment(evaluationId!, signal)
-        : evaluationApi
-            .getEvaluationResults(evaluationId!)
-            .then((result) => ({ contract: "legacy.v1" as const, result })),
+    queryFn: async ({ signal }) => {
+      try {
+        const result = await evaluationApi.getEvaluationResults(
+          evaluationId!,
+          signal,
+        );
+        return { contract: "legacy.v1" as const, result };
+      } catch (error) {
+        if (
+          agent === "itso" &&
+          isApiError(error) &&
+          error.status === 409 &&
+          error.detail === "unsupported_version"
+        ) {
+          return itsoApi.getAssessment(evaluationId!, signal);
+        }
+        throw error;
+      }
+    },
     enabled: Boolean(
       evaluationId &&
       (status === "COMPLETED" || (status === "FAILED" && agent === "itso")),

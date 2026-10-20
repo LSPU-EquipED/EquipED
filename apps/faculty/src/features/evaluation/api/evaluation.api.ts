@@ -40,8 +40,11 @@ export const evaluationApi = {
     return requestJson<EvaluationStatusResponse>(`/evaluations/${id}/status`);
   },
 
-  getEvaluationResults: async (id: string): Promise<EvaluationResultsResponse> => {
-    return requestJson<EvaluationResultsResponse>(`/evaluations/${id}/results`);
+  getEvaluationResults: async (
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<EvaluationResultsResponse> => {
+    return requestJson<EvaluationResultsResponse>(`/evaluations/${id}/results`, { signal });
   },
 
   submitCriterionFeedback: async (
