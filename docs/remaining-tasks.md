@@ -1,5 +1,7 @@
 # Remaining evaluation tasks
 
+ITSO adapter 3 requires credential-free public search and available source-page retrieval for criteria 1 and 2 on every run, with ordinary five-criterion advisory scoring and the existing specialist UI. The owner approved lesson/topic-name search when no bibliography is detected, with missing citations reported rather than blocking otherwise queryable modules. Local search is enabled; no Brave key is required for current evaluations. SLM_4 completed through the real API and worker with a public-topic search, a retrieved source body passage and five scores, evaluation `5fc70913-6abe-4945-96a4-bac017741208`. This establishes live pipeline execution, not expert accuracy. Governance, attachment and manual fact-decision interfaces are retired; historical assessments and applied migrations remain intact. See `itso-evidence-first-release.md` for operation and browser verification limits.
+
 Updated: 2026-10-19. This tracks the current SME work and outstanding experiment follow-ups. GAD package connection was verified on 2026-10-19; post-training steps remain pending. Other statuses reflect saved local reports, not a fresh database audit.
 
 | Task | Status | Remaining work |

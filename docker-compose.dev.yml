@@ -38,6 +38,7 @@ services:
       CHROMA_HOST: chroma
       CHROMA_PORT: "8000"
       CHROMA_SSL: "false"
+      ITSO_VERIFICATION_ENABLED: ${ITSO_VERIFICATION_ENABLED:-true}
     volumes:
       - ./apps/server:/app/apps/server
       - ./libs/evaluation-harness:/app/libs/evaluation-harness

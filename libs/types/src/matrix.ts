@@ -1,4 +1,5 @@
-import type { CoordinatorAlignmentAdvisory } from './evaluations';
+import type { CoordinatorAlignmentAdvisory } from "./evaluations";
+import type { ITSOCriterionAssessment } from "./itso";
 
 export interface MatrixCriterionScoreItem {
   rubric_criterion_id?: string | null;
@@ -6,13 +7,14 @@ export interface MatrixCriterionScoreItem {
   criterion_text: string;
   description?: string | null;
   display_order?: number | null;
-  score: number;
+  score: number | null;
   justification?: string;
   evidence?: string | null;
   is_ungrounded?: boolean;
 }
 
-export interface MatrixDomainScoreBlock {
+export interface LegacyMatrixDomainScoreBlock {
+  contract?: "legacy.v1";
   advisory_outputs?: CoordinatorAlignmentAdvisory | null;
   form_snapshot_id?: string | null;
   rubric_set_id?: string | null;
@@ -30,6 +32,24 @@ export interface MatrixDomainScoreBlock {
   adjectival_rating?: string | null;
   summary?: string;
 }
+
+export type ITSOMatrixDomainScoreBlock = Omit<
+  LegacyMatrixDomainScoreBlock,
+  "contract" | "criteria" | "subtotal"
+> & {
+  contract: "itso_evidence.v1";
+  evaluation_id: string;
+  execution_status: "COMPLETED" | "FAILED";
+  scoring_complete: boolean;
+  criteria: ITSOCriterionAssessment[];
+  subtotal: number | null;
+  scored_count: number;
+  unscored_count: number;
+  issue_count: number;
+  uncertainty_count: number;
+};
+export type MatrixDomainScoreBlock =
+  LegacyMatrixDomainScoreBlock | ITSOMatrixDomainScoreBlock;
 
 export interface MonitoringMatrixRow {
   matrix_id: string;
