@@ -1,15 +1,15 @@
-import { SpecialistEvaluationFailure } from "./SpecialistEvaluationFailure";
+import { SpecialistEvaluationFailure } from "./workspace/SpecialistEvaluationFailure";
 import { WarningCircle } from "@phosphor-icons/react";
 import { isTargetAgent } from "@equiped/types";
 import { useScorecardController } from "../hooks/useScorecardController";
-import { EvaluationProgress } from "./EvaluationProgress";
-import { EvaluationReviewDialog } from "./EvaluationReviewDialog";
-import { EvaluationConfirmModal } from "./EvaluationConfirmModal";
+import { EvaluationProgress } from "./workspace/EvaluationProgress";
+import { EvaluationReviewDialog } from "./review/EvaluationReviewDialog";
+import { EvaluationConfirmModal } from "./setup/EvaluationConfirmModal";
 import {
   EvaluationResultsLoading,
   EvaluationResultState,
-} from "./EvaluationResultState";
-import { LegacyEvaluationResults } from "./LegacyEvaluationResults";
+} from "./results/EvaluationResultState";
+import { LegacyEvaluationResults } from "./results/LegacyEvaluationResults";
 
 export function Scorecard() {
   const {
