@@ -876,6 +876,7 @@ describe("SpecialistScoreboardPage", () => {
         );
         expect(evaluationApi.getEvaluationResults).toHaveBeenCalledWith(
           "eval-sme-progress",
+          expect.any(AbortSignal),
         );
       }
       if (terminalStatus === "COMPLETED") {
@@ -1168,11 +1169,13 @@ describe("SpecialistScoreboardPage", () => {
     ).toBeDefined();
     expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalledWith(
       "newer-run",
+      expect.any(AbortSignal),
     );
     fireEvent.click(screen.getByRole("button", { name: "View latest run" }));
     await screen.findByRole("heading", { name: "Newer SLM result" });
     expect(evaluationApi.getEvaluationResults).toHaveBeenCalledWith(
       "newer-run",
+      expect.any(AbortSignal),
     );
   });
 });

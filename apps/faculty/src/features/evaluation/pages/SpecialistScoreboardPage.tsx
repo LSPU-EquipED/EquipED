@@ -1,15 +1,15 @@
 import { useState } from "react";
 import type { TargetAgent } from "@equiped/types";
-import { SpecialistEvaluationFailure } from "../components/SpecialistEvaluationFailure";
-import { EvaluationProgress } from "../components/EvaluationProgress";
-import { EvaluationReviewDialog } from "../components/EvaluationReviewDialog";
-import { EvaluationConfirmModal } from "../components/EvaluationConfirmModal";
-import { SpecialistDirectoryView } from "../components/SpecialistDirectoryView";
-import { SpecialistLaunchpad } from "../components/SpecialistLaunchpad";
-import { EvaluationResultState } from "../components/EvaluationResultState";
+import { SpecialistEvaluationFailure } from "../components/workspace/SpecialistEvaluationFailure";
+import { EvaluationProgress } from "../components/workspace/EvaluationProgress";
+import { EvaluationReviewDialog } from "../components/review/EvaluationReviewDialog";
+import { EvaluationConfirmModal } from "../components/setup/EvaluationConfirmModal";
+import { SpecialistDirectoryView } from "../components/workspace/SpecialistDirectoryView";
+import { SpecialistLaunchpad } from "../components/workspace/SpecialistLaunchpad";
+import { EvaluationResultState } from "../components/results/EvaluationResultState";
 import { useSpecialistWorkspace } from "../hooks/useSpecialistWorkspace";
 import { useSpecialistQueue } from "../hooks/useSpecialistQueue";
-import { SelectModuleModal } from "../components/SelectModuleModal";
+import { SelectModuleModal } from "../components/setup/SelectModuleModal";
 import {
   WorkspaceLoading,
   WorkspaceRecovery,

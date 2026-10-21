@@ -41,7 +41,7 @@ vi.mock('@equiped/api-client', async (importOriginal) => {
     },
   };
 });
-vi.mock('../ScorecardPdfExport', () => ({
+vi.mock('../exports/ScorecardPdfExport', () => ({
   ScorecardPdfExport: () => <button type="button">Export PDF Mock</button>,
 }));
 
@@ -622,8 +622,8 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
     renderScorecard();
     await screen.findByRole('heading', { name: 'Recorded result' });
     expect(await screen.findByRole('link', { name: 'View latest run' })).toBeDefined();
-    expect(evaluationApi.getEvaluationResults).toHaveBeenCalledWith('eval-123');
-    expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalledWith('newer-run');
+    expect(evaluationApi.getEvaluationResults).toHaveBeenCalledWith('eval-123', expect.any(AbortSignal));
+    expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalledWith('newer-run', expect.any(AbortSignal));
   });
 
 });

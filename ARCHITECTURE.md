@@ -328,6 +328,7 @@ All contributions must adhere to the practical code writing style grounded in re
     ├── types/         # Feature-specific TypeScript types
     └── __tests__/     # Feature unit and component tests
     ```
+  - Faculty evaluation components use shallow `workspace/`, `setup/`, `results/`, `review/`, and `exports/` groups, with their tests colocated under each group. `Scorecard.tsx` remains the composition component at the components root; hooks, API callers, types, and utilities remain feature-owned.
 - **Promotion Rule**: Do not place single-use utilities in shared folders. Code only moves to `shared/` or `libs/*` after proven reuse across two or more distinct features.
 - **No Cross-Feature Imports**: Enforced strictly. If Feature A requires data or views from Feature B, the dependency must be refactored into a shared library, routed via URL/shell, or orchestrated at the app shell level.
 - **Accessibility & Design System (WCAG 2.1 AA)**:
