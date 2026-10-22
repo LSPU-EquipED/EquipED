@@ -27,7 +27,9 @@ TRANSIENT_KINDS = frozenset(
     }
 )
 
-REJECTED_RESPONSE_KINDS = frozenset({"response_schema", "response_coverage"})
+REJECTED_RESPONSE_KINDS = frozenset(
+    {"response_schema", "response_coverage", "response_truncated"}
+)
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,11 @@ def build_failure_message(outcome: AlignmentCheckOutcome) -> str:
     """Concise safe failure text distinguishing rejection, transient, and
     configuration failures -- never echoing provider payloads."""
     kind = outcome.provenance.error_kind if outcome.provenance else None
+    if kind == "response_truncated":
+        return (
+            "The alignment check could not complete: the model reached its "
+            "output limit before a complete response could be accepted."
+        )
     if kind in REJECTED_RESPONSE_KINDS:
         return (
             "The alignment check could not complete: the model returned a "

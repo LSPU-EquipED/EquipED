@@ -634,6 +634,7 @@ def test_curriculum_background_ingestion_fails_closed_on_empty_page(
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(doc.document_id)
 
     db_session.expire_all()
@@ -722,6 +723,7 @@ def test_background_ingestion_clears_stale_chunks_on_ocr_failure(
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(doc_id)
 
     db_session.expire_all()
@@ -790,6 +792,7 @@ def test_process_document_ingestion_expected_failure_persists_sanitized_warning(
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(doc_id)
 
     db_session.expire_all()
@@ -856,6 +859,7 @@ def test_process_document_ingestion_unexpected_failure_persists_generic_warning(
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(doc_id)
 
     db_session.expire_all()
@@ -930,6 +934,7 @@ def test_process_document_ingestion_successful_retry_clears_stale_warning(
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(doc_id)
 
     db_session.expire_all()
@@ -1024,6 +1029,7 @@ def test_process_document_ingestion_initial_failure_does_not_invoke_chroma(
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(doc_id)
 
     # Initial failure must not invoke Chroma cleanup
@@ -1110,6 +1116,7 @@ def test_process_document_ingestion_stale_prior_state_strict_cleanup_success(
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(doc_id)
 
     # Must invoke strict cleanup for document_id and source_type
@@ -1196,6 +1203,7 @@ def test_process_document_ingestion_stale_prior_state_missing_collection_converg
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(doc_id)
 
     mock_chroma_delete.assert_called_once_with(str(doc_id), "curriculum")
@@ -1289,6 +1297,7 @@ def test_process_document_ingestion_strict_cleanup_exception_preserves_state(
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(doc_id)
 
     mock_chroma_delete.assert_called_once_with(str(doc_id), "syllabus")
@@ -1349,6 +1358,7 @@ def test_process_document_ingestion_no_database_mode_fails_closed_and_cleans_fil
     )
     persistence._MEM_CHUNKS[doc_id] = ["prior_chunk"]
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(doc_id)
 
     updated_mem = persistence._MEM_DOCUMENTS[doc_id]
@@ -1523,6 +1533,7 @@ def test_process_document_ingestion_db_write_failure_strict_cleanup_success(
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(doc_id)
 
     mock_chroma_delete.assert_called_once_with(str(doc_id), "syllabus")
@@ -1632,6 +1643,7 @@ def test_process_document_ingestion_db_write_fail_unverified_preserves_state(
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(doc_id)
 
     mock_chroma_delete.assert_called_once_with(str(doc_id), "syllabus")
@@ -1740,6 +1752,7 @@ def test_startup_recovery_preserves_unverified_vector_cleanup_state(
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", tmp_path)
     process_document_ingestion(unverified_id)
 
     db_session.expire_all()

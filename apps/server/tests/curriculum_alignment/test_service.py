@@ -13,7 +13,6 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from server.modules.alignment.curriculum.admission import (
     validate_course_program,
 )
@@ -193,6 +192,37 @@ def _success_outcome(results: list[AlignmentResultItem]) -> AlignmentCheckOutcom
             retry_outcome="success",
         ),
     )
+
+
+@pytest.mark.parametrize("complete", [True, False])
+def test_array_response_persists_diagnostics_without_partial_results(
+    db_session, complete
+):
+    course, _ = _make_course_with_map(db_session)
+    owner = uuid.uuid4()
+    document = _make_document(db_session, uploaded_by=owner)
+    _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
+    entries = _ok_payload()["results"] if complete else []
+    check = run_curriculum_alignment_check(
+        document_id=document.document_id,
+        course_id=course.course_id,
+        current_user_id=owner,
+        db=db_session,
+        llm_client=FakeClient(f"```json\n{json.dumps(entries)}\n```"),
+    )
+    db_session.expire_all()
+    saved = db_session.get(CurriculumAlignmentCheck, check.check_id)
+    assert saved.success is complete
+    assert saved.provenance["response_top_level_type"] == "array"
+    assert saved.provenance["response_array_wrapped"] is True
+    assert saved.provenance["response_markdown_fence"] is True
+    assert _PAGE_TEXT not in json.dumps(saved.provenance)
+    if complete:
+        assert saved.objective_results[0]["evidence"] == _PAGE_TEXT
+        assert saved.objective_results[0]["evidence_page"] == 1
+    else:
+        assert saved.objective_results == []
+        assert saved.provenance["error_kind"] == "response_coverage"
 
 
 def test_list_courses_returns_seeded_courses(db_session) -> None:

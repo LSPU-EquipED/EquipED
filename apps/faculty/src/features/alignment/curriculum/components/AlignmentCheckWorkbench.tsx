@@ -17,16 +17,16 @@ export function AlignmentCheckWorkbench({
   coverageScope,
 }: AlignmentCheckWorkbenchProps) {
   return (
-    <div className="grid flex-1 min-h-[44rem] grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] divide-y lg:divide-y-0 lg:divide-x divide-border rounded-md border border-border bg-surface overflow-hidden shadow-none">
-      <div className="min-w-0 overflow-hidden flex flex-col">
+    <div className="grid auto-rows-[44rem] grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] divide-y lg:divide-y-0 lg:divide-x divide-border rounded-md border border-border bg-surface overflow-hidden shadow-none">
+      <div className="min-h-0 min-w-0 overflow-hidden flex flex-col">
         <SlmReadingPane
           ref={readingPaneRef}
           pages={pages}
         />
       </div>
 
-      <div className="min-w-0 overflow-y-auto flex flex-col bg-surface">
-        <div className="flex items-center justify-between border-b border-border bg-surface-subtle/50 px-4 py-2.5">
+      <div className="min-h-0 min-w-0 overflow-hidden flex flex-col bg-surface">
+        <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface-subtle/50 px-4 py-2.5">
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-text">
               Mapped Curriculum Objectives
@@ -40,7 +40,12 @@ export function AlignmentCheckWorkbench({
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div
+          className="min-h-0 flex-1 overflow-y-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+          role="region"
+          aria-label="Mapped curriculum objectives"
+          tabIndex={0}
+        >
           <AlignmentResultsTable
             objectiveResults={checkData.objective_results}
             coverageScope={coverageScope}

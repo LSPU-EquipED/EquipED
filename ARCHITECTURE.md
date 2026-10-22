@@ -178,6 +178,7 @@ The backend (`apps/server/`) is structured strictly as an in-process modular mon
 - `apps/server/core/`: Contains **infrastructure only** (database connection pools, settings, base exceptions, logging setup, LLM provider clients, and Chroma adapters). Core contains **zero business logic**.
 - `apps/server/modules/`: Domain packages containing their own routers, service facades, domain models, Pydantic schemas, and local errors:
   - `documents`: SLM and reference PDF ingestion, OCR processing, text chunking, and journaled deletion.
+    Background reference ingestion resolves stored file locations to validated PDFs under the local upload root before extraction, downloading from the configured storage backend when no local copy exists.
   - `embeddings`: Embedding pipeline and similarity retrieval scoped **exclusively** to syllabi, curricula, and institutional rubrics.
   - `evaluations`: DB-backed FIFO queue, CAS claim token admission, worker drain loop, Layer 3 agent dispatch, and crash recovery.
   - Evaluation integration is flat under `evaluations`: `runner.py`, `dispatch.py` and `context.py` prepare authorized local inputs and maintain worker leases; `harness_adapter.py` translates explicit model/tool configuration. Specialist implementations and public-reference tools live outside the server. Database-backed envelope lookup lives in `rubrics/envelopes.py`.

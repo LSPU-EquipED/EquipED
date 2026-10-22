@@ -14,6 +14,7 @@ from server.modules.embeddings.service import delete_chroma_vectors_strict
 from . import paths, persistence
 from .embedding import embed_document_chunks
 from .exceptions import (
+    DocumentsError,
     ExtractionFailedError,
 )
 from .ingestion.pipeline import ingest_document
@@ -176,6 +177,12 @@ def process_document_ingestion(document_id: uuid.UUID) -> None:
     # Phase 2 — heavy OCR/extraction with NO DB session held.
     extraction_error: str | None = None
     try:
+        try:
+            file_path = str(paths.resolve_document_pdf_path(file_path))
+        except DocumentsError as exc:
+            raise ExtractionFailedError(
+                "The uploaded file could not be processed."
+            ) from exc
         chunk_data = ingest_document(
             file_path, source_type, str(document_id), program=program
         )
