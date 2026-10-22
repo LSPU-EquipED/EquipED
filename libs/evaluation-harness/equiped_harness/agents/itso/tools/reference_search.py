@@ -136,6 +136,18 @@ class _PageParser(HTMLParser):
         self.block.clear()
 
 
+def _apa_title(value: str) -> str:
+    """Keep the work title, excluding retrieval notes and publisher suffixes."""
+    value = re.split(
+        r"(?:^|\s+)(?:retrieved|accessed|available)\s+(?:from|at|on)\b",
+        value,
+        maxsplit=1,
+        flags=re.I,
+    )[0]
+    title = re.split(r"(?<=[.!?])\s+(?=[A-Z])", value, maxsplit=1)[0].strip(" .\"'“”")
+    return title if re.search(r"[A-Za-z]{3,}", title) else ""
+
+
 def extract_bibliography(text: str) -> tuple[BibliographyItem, ...]:
     """Read citations from a bounded bibliography section and stop at its boundary.
 
@@ -171,6 +183,11 @@ def extract_bibliography(text: str) -> tuple[BibliographyItem, ...]:
     section_characters = 0
     citation_year = re.compile(
         r"^(.{3,180}?)\s+\(?(?:1[4-9]\d{2}|20\d{2}|21\d{2}|2200)\)?[.,]?\s+"
+    )
+    citation_date = re.compile(
+        r"^(.{3,180}?)\s+\((?:n\.\s*d\.|1[4-9]\d{2}|20\d{2}|"
+        r"21\d{2}|2200)\)\.\s+",
+        re.I,
     )
     continuation_start = re.compile(
         r"^(?:journal\s+of\b.*(?:\d+\s*\(\d+\)\s*,?\s*"
@@ -236,7 +253,9 @@ def extract_bibliography(text: str) -> tuple[BibliographyItem, ...]:
                 continue
             numbered = re.match(r"^(?:\[\d{1,3}\]|\d{1,3}[.)]|[-*])\s+", value)
             citation_value = value[numbered.end() :] if numbered else value
-            citation_start = citation_year.match(citation_value)
+            citation_start = citation_date.match(citation_value) or citation_year.match(
+                citation_value
+            )
             valid_citation_start = bool(
                 citation_start
                 and re.search(r"[A-Za-z][A-Za-z'-]{2,}", citation_start.group(1))
@@ -267,14 +286,38 @@ def extract_bibliography(text: str) -> tuple[BibliographyItem, ...]:
         doi = doi_match.group(1).rstrip(".,)") if doi_match else None
         year_match = re.search(r"\b(1[4-9]\d{2}|20\d{2}|21\d{2}|2200)\b", entry)
         year = int(year_match.group(1)) if year_match else None
+        clean_entry = re.sub(r"https?://\S+", "", entry).strip()
+        apa = re.match(
+            r"^(?P<author>.+?)\s+\((?P<date>n\.\s*d\.|1[4-9]\d{2}|"
+            r"20\d{2}|21\d{2}|2200)\)\.\s*(?P<title>.+)$",
+            clean_entry,
+            re.I,
+        )
+        if apa:
+            apa_date = apa.group("date")
+            year = (
+                None
+                if re.sub(r"\s+", "", apa_date).casefold() == "n.d."
+                else int(apa_date)
+            )
         # Queries contain only citation fields from the accepted section.
         authors: tuple[str, ...] = ()
         title = ""
         if section_name == "learning_resources":
-            clean_entry = re.sub(r"https?://\S+", "", entry).strip()
+            # APA references place the date between author and title. Handle
+            # n.d. explicitly so it cannot become the title or cause a later
+            # number in the title to be treated as the publication year.
+            apa_author = ""
+            if apa:
+                apa_author = apa.group("author").strip().rstrip(".")
+                title = _apa_title(apa.group("title"))
+                if re.sub(r"\s+", "", title).casefold() not in {"", "(n.d.)"}:
+                    authors = (apa_author,)
             editor_marker = re.search(r"\(Eds?\)\.?\s*", clean_entry, re.I)
             boundary = re.search(r"\.\s+", clean_entry)
-            if editor_marker:
+            if apa:
+                author_text, title_start = apa_author, len(clean_entry)
+            elif editor_marker:
                 author_text = clean_entry[: editor_marker.end()].strip(" .")
                 title_start = editor_marker.end()
             elif boundary:
@@ -282,21 +325,22 @@ def extract_bibliography(text: str) -> tuple[BibliographyItem, ...]:
                 title_start = boundary.end()
             else:
                 author_text, title_start = "", len(clean_entry)
-            title_tail = clean_entry[title_start:]
-            title_tail = re.split(
-                r"\b(?:1[4-9]\d{2}|20\d{2}|21\d{2}|2200)\b",
-                title_tail,
-                maxsplit=1,
-            )[0]
-            title_tail = re.sub(
-                r"\s+\d+(?:st|nd|rd|th)\s+edition\b.*$",
-                "",
-                title_tail,
-                flags=re.I,
-            )
-            title = re.split(r"\.\s+(?=[A-Z])", title_tail, maxsplit=1)[0].strip(
-                " .\"'“”"
-            )
+            if not apa:
+                title_tail = clean_entry[title_start:]
+                title_tail = re.split(
+                    r"\b(?:1[4-9]\d{2}|20\d{2}|21\d{2}|2200)\b",
+                    title_tail,
+                    maxsplit=1,
+                )[0]
+                title_tail = re.sub(
+                    r"\s+\d+(?:st|nd|rd|th)\s+edition\b.*$",
+                    "",
+                    title_tail,
+                    flags=re.I,
+                )
+                title = re.split(r"\.\s+(?=[A-Z])", title_tail, maxsplit=1)[0].strip(
+                    " .\"'“”"
+                )
             private_metadata = re.compile(
                 r"(?i)\b(?:student|learner|faculty|email|phone|mobile|address|"
                 r"confidential|private|prepared\s+by|student\s*id|id\s*(?:no|number))\b"
@@ -305,13 +349,15 @@ def extract_bibliography(text: str) -> tuple[BibliographyItem, ...]:
                 len(author_text) <= 100
                 and not private_metadata.search(author_text)
                 and (
-                    "," in author_text
+                    apa
+                    or "," in author_text
                     or "&" in author_text
                     or re.search(r"\band\b", author_text, re.I)
                 )
             )
             if (
-                author_identifiable
+                not apa
+                and author_identifiable
                 and len(re.findall(r"[A-Za-z]+", title)) >= 2
                 and not re.search(
                     r"(?i)\b(?:university|pittsburgh|pennsylvania|copyright|retrieved|institute)\b",
@@ -324,17 +370,30 @@ def extract_bibliography(text: str) -> tuple[BibliographyItem, ...]:
                 r"\(?(?:1[4-9]\d{2}|20\d{2}|21\d{2}|2200)\)?[.,]?\s+([^.!?]{3,300})",
                 entry,
             )
+            if apa:
+                title_match = None
+                title = _apa_title(apa.group("title"))
+                if re.sub(r"\s+", "", title).casefold() not in {"", "(n.d.)"}:
+                    authors = (apa.group("author").strip().rstrip("."),)
             if title_match:
                 title = title_match.group(1).strip(" .\"'“”")
             author_match = re.match(
                 r"^(.{3,180}?)\s+\(?(?:1[4-9]\d{2}|20\d{2}|21\d{2}|2200)\)?",
                 entry,
             )
-            if author_match and re.search(
-                r"[A-Za-z][A-Za-z'-]{2,}", author_match.group(1)
+            if (
+                not apa
+                and author_match
+                and re.search(r"[A-Za-z][A-Za-z'-]{2,}", author_match.group(1))
             ):
                 authors = (author_match.group(1).strip(),)
         identity = bool(authors)
+        if authors and re.search(
+            r"(?i)\b(?:student|learner|faculty|email|phone|mobile|address|"
+            r"confidential|private|prepared\s+by|student\s*id|id\s*(?:no|number))\b",
+            " ".join(authors),
+        ):
+            continue
         if title and re.search(
             r"(?i)\b(?:student|email|phone|address|prepared by)\b", title
         ):
@@ -631,7 +690,36 @@ async def build_public_reference_report(
     output = []
     search_attempts = 0
     source_attempts = 0
+    deadline_reached = False
+
+    async def bounded_get(request, counter: str):
+        """Make one bounded provider call, retrying only transient HTTP responses."""
+        nonlocal search_attempts, source_attempts
+        attempts = 0
+        while attempts < 2:
+            if clock() >= deadline:
+                raise VerificationError(Code.DEADLINE)
+            call_deadline = min(deadline, clock() + CALL_DEADLINE_SECONDS)
+            attempts += 1
+            if counter == "search":
+                search_attempts += 1
+            elif counter == "source":
+                source_attempts += 1
+            try:
+                response = await asyncio.wait_for(
+                    transport.get(request, call_deadline),
+                    max(0.001, call_deadline - clock()),
+                )
+            except TimeoutError:
+                raise VerificationError(Code.DEADLINE) from None
+            if response.status not in {500, 502, 503, 504} or attempts == 2:
+                return response
+        raise AssertionError("bounded request loop exhausted")
+
     for item in items[:REFERENCE_LIMIT]:
+        if deadline_reached or clock() >= deadline:
+            deadline_reached = True
+            break
         ref = item.reference
         row: dict[str, Any] = {
             "query": item.query,
@@ -669,16 +757,7 @@ async def build_public_reference_report(
             for provider in ("crossref", "datacite"):
                 url = doi_url(provider, ref.doi)
                 try:
-                    response = await asyncio.wait_for(
-                        transport.get(
-                            Request(url, provider),
-                            min(deadline, clock() + CALL_DEADLINE_SECONDS),
-                        ),
-                        max(
-                            0.001,
-                            min(deadline, clock() + CALL_DEADLINE_SECONDS) - clock(),
-                        ),
-                    )
+                    response = await bounded_get(Request(url, provider), "registry")
                     if response.status == 404:
                         continue
                     if response.status != 200:
@@ -688,8 +767,19 @@ async def build_public_reference_report(
                     )(response.body)
                     row["registry_url"] = url
                     break
-                except TimeoutError:
-                    raise VerificationError(Code.DEADLINE) from None
+                except VerificationError as exc:
+                    if exc.code in {Code.SECURITY, Code.INVALID, Code.DISABLED}:
+                        raise
+                    if exc.code == Code.DEADLINE and clock() >= deadline:
+                        deadline_reached = True
+                        row["registry_status"] = "unavailable"
+                        row.setdefault("errors", []).append(exc.code.value)
+                        break
+                    row["registry_status"] = "unavailable"
+                    row["status"] = "unavailable"
+                    row.setdefault("errors", []).append(exc.code.value)
+                    # A failed registry lookup cannot establish author/year.
+                    continue
         if metadata:
             status, matched, mismatch = match_metadata(ref, metadata)
             row["registry_status"] = status
@@ -735,18 +825,14 @@ async def build_public_reference_report(
         usable_page_found = False
         seen_candidate_urls: set[str] = set()
         for current_search_ref, query_scope in search_refs:
+            if deadline_reached or clock() >= deadline:
+                deadline_reached = True
+                break
             candidates = []
             try:
-                search_attempts += 1
                 search_url = duckduckgo_url(current_search_ref)
-                response = await asyncio.wait_for(
-                    transport.get(
-                        Request(search_url, "duckduckgo"),
-                        min(deadline, clock() + CALL_DEADLINE_SECONDS),
-                    ),
-                    max(
-                        0.001, min(deadline, clock() + CALL_DEADLINE_SECONDS) - clock()
-                    ),
+                response = await bounded_get(
+                    Request(search_url, "duckduckgo"), "search"
                 )
                 if response.status != 200:
                     raise VerificationError(Code.HTTP)
@@ -765,6 +851,7 @@ async def build_public_reference_report(
                     }
                 )
             except VerificationError as exc:
+                row.setdefault("errors", []).append(exc.code.value)
                 row["search_attempts"].append(
                     {
                         "query_scope": query_scope,
@@ -773,7 +860,11 @@ async def build_public_reference_report(
                         "error_code": exc.code.value,
                     }
                 )
-                raise
+                if exc.code in {Code.SECURITY, Code.INVALID, Code.DISABLED}:
+                    raise
+                row["status"] = "unavailable"
+                if exc.code == Code.DEADLINE and clock() >= deadline:
+                    deadline_reached = True
             except TimeoutError:
                 row["search_attempts"].append(
                     {
@@ -783,8 +874,13 @@ async def build_public_reference_report(
                         "error_code": Code.DEADLINE.value,
                     }
                 )
-                raise VerificationError(Code.DEADLINE) from None
+                row["status"] = "unavailable"
+                if clock() >= deadline:
+                    deadline_reached = True
             for candidate in candidates[:SOURCE_CANDIDATE_LIMIT]:
+                if deadline_reached or clock() >= deadline:
+                    deadline_reached = True
+                    break
                 if candidate.url in seen_candidate_urls:
                     continue
                 seen_candidate_urls.add(candidate.url)
@@ -801,26 +897,37 @@ async def build_public_reference_report(
                     current_url = candidate.url
                     visited_urls: set[str] = set()
                     redirects = 0
+                    blocked_candidate = False
                     while True:
-                        validate_url(current_url)
+                        try:
+                            validate_url(current_url)
+                        except VerificationError as exc:
+                            if exc.code != Code.SECURITY:
+                                raise
+                            attempt.update(
+                                outcome="unavailable",
+                                reason=Code.SECURITY.value,
+                                error_code=Code.SECURITY.value,
+                            )
+                            row["status"] = "unavailable"
+                            blocked_candidate = True
+                            break
                         validated = _url_identity(current_url)
                         if current_url != candidate.url:
                             attempt["validated_host"] = validated["host"]
                             attempt["validated_url_hash"] = validated["url_hash"]
                         if current_url in visited_urls:
-                            raise VerificationError(Code.SECURITY)
+                            attempt.update(
+                                outcome="unavailable",
+                                reason=Code.SECURITY.value,
+                                error_code=Code.SECURITY.value,
+                            )
+                            row["status"] = "unavailable"
+                            blocked_candidate = True
+                            break
                         visited_urls.add(current_url)
-                        source_attempts += 1
-                        page = await asyncio.wait_for(
-                            transport.get(
-                                Request(current_url, "document"),
-                                min(deadline, clock() + CALL_DEADLINE_SECONDS),
-                            ),
-                            max(
-                                0.001,
-                                min(deadline, clock() + CALL_DEADLINE_SECONDS)
-                                - clock(),
-                            ),
+                        page = await bounded_get(
+                            Request(current_url, "document"), "source"
                         )
                         if page.status not in {301, 302, 303, 307, 308}:
                             break
@@ -840,8 +947,9 @@ async def build_public_reference_report(
                             )
                             break
                         current_url = urljoin(current_url, location)
-                        validate_url(current_url)
                         redirects += 1
+                    if blocked_candidate:
+                        continue
                     if page.status != 200:
                         row["status"] = "unavailable"
                         if attempt["reason"] not in {
@@ -885,6 +993,7 @@ async def build_public_reference_report(
                         if row["registry_status"] in {
                             "not_applicable",
                             "not_checked",
+                            "unavailable",
                             "matched",
                         }:
                             match_field = (
@@ -892,7 +1001,20 @@ async def build_public_reference_report(
                             )
                             if match_field not in row["matched_fields"]:
                                 row["matched_fields"].append(match_field)
-                            if item.citation_section == "learning_resources":
+                            if row["registry_status"] == "unavailable":
+                                unverified = [
+                                    field
+                                    for field, present in (
+                                        ("author", bool(ref.authors)),
+                                        ("year", ref.year is not None),
+                                        ("doi", ref.doi is not None),
+                                    )
+                                    if present
+                                ]
+                                if unverified:
+                                    row["unverified_fields"] = unverified
+                                row["status"] = "ambiguous"
+                            elif item.citation_section == "learning_resources":
                                 unverified = [
                                     field
                                     for field, present in (
@@ -924,12 +1046,11 @@ async def build_public_reference_report(
                         reason=exc.code.value,
                         error_code=exc.code.value,
                     )
-                    if exc.code == Code.DEADLINE:
-                        if clock() >= deadline:
-                            raise
-                        row["status"] = "unavailable"
-                    else:
-                        row["status"] = _status_for_error(exc)
+                    if exc.code in {Code.SECURITY, Code.INVALID, Code.DISABLED}:
+                        raise
+                    if exc.code == Code.DEADLINE and clock() >= deadline:
+                        deadline_reached = True
+                    row["status"] = "unavailable"
                 except TimeoutError:
                     attempt.update(
                         outcome="unavailable",
@@ -937,8 +1058,10 @@ async def build_public_reference_report(
                         error_code=Code.DEADLINE.value,
                     )
                     if clock() >= deadline:
-                        raise VerificationError(Code.DEADLINE) from None
+                        deadline_reached = True
                     row["status"] = "unavailable"
+                if deadline_reached:
+                    break
             if usable_page_found:
                 break
         output.append(row)
