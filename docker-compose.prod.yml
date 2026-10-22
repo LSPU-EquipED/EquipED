@@ -31,9 +31,12 @@ services:
       target: prod
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/equiped}
-      CHROMA_HOST: chroma
-      CHROMA_PORT: "8000"
-      CHROMA_SSL: "false"
+      CHROMA_HOST: ${CHROMA_HOST:-chroma}
+      CHROMA_PORT: ${CHROMA_PORT:-8000}
+      CHROMA_SSL: ${CHROMA_SSL:-false}
+      CHROMA_API_KEY: ${CHROMA_API_KEY:-}
+      CHROMA_TENANT: ${CHROMA_TENANT:-}
+      CHROMA_DATABASE: ${CHROMA_DATABASE:-}
       ITSO_VERIFICATION_ENABLED: ${ITSO_VERIFICATION_ENABLED:-true}
     volumes:
       - uploads_prod_data:/app/uploads
