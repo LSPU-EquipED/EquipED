@@ -125,6 +125,116 @@ def test_extracts_flattened_learning_resources_as_cited_work_metadata():
     assert found[2].reference.year is None
 
 
+def test_extracts_flattened_apa_learning_resources_including_corporate_authors():
+    source = (
+        "Learning Resources 1. Dix, A., Finlay, J., Abowd, G., & Beale, R. "
+        "(n.d.). Human–computer interaction (Chapter 1). Retrieved from hcibook.com. "
+        "2. Evident Scientific. (n.d.). Human vision & color perception: How the eye "
+        "processes light. Retrieved from https://evidentscientific.com. "
+        "3. StatPearls Publishing. (2025). Physiology, color perception. "
+        "NCBI Bookshelf. "
+        "4. Interaction Design Foundation. (2017). What is color in UX design? "
+        "Retrieved from https://ixdf.org. "
+        "5. Interaction Design Foundation. (2023). UI color palette 2026: "
+        "Best practices, tips, and tricks for designers. "
+        "6. Full Clarity. (2024). Colour theory for UI design: "
+        "UX UI colour best practice guide. "
+        "7. Material Design. (n.d.). Applying color to UI. "
+        "Retrieved from https://m2.material.io. "
+        "8. Studocu. (2023). Input–output channels in "
+        "human–computer interaction (HCI). "
+        "9. Scribd. (2025). Human input–output channels in HCI "
+        "(Unit 1 exam prep notes). "
+        "10. NCBI / various authors. (2019). Brightness–color interactions "
+        "in human early visual cortex and related works on color–brightness "
+        "interaction.\n"
+        "Prepared by PRIVATE PERSON"
+    )
+    found = extract_bibliography(source)
+    assert len(found) == 10
+    assert [item.reference.year for item in found] == [
+        None,
+        None,
+        2025,
+        2017,
+        2023,
+        2024,
+        None,
+        2023,
+        2025,
+        2019,
+    ]
+    assert found[0].reference.title.startswith("Human–computer interaction")
+    assert found[1].reference.title.startswith("Human vision & color perception")
+    assert found[3].reference.title == "What is color in UX design?"
+    assert found[4].reference.title.startswith("UI color palette 2026")
+    assert found[1].reference.authors == ("Evident Scientific",)
+    assert found[2].reference.authors == ("StatPearls Publishing",)
+    assert found[9].reference.authors == ("NCBI / various authors",)
+    assert all("Prepared" not in item.query for item in found)
+
+
+def test_standard_references_accepts_apa_no_date_without_year_from_title():
+    found = extract_bibliography(
+        "References\n"
+        "Material Design. (n.d.). UI color palette 2026: Applying color to UI.\n"
+    )
+    assert len(found) == 1
+    assert found[0].reference.authors == ("Material Design",)
+    assert found[0].reference.year is None
+    assert found[0].reference.title == "UI color palette 2026: Applying color to UI"
+
+
+def test_apa_spaced_no_date_is_normalized_without_year_conversion():
+    found = extract_bibliography("References\nNamed Author. (n. d.). A Useful Work.\n")
+    assert len(found) == 1
+    assert found[0].reference.year is None
+    assert found[0].reference.title == "A Useful Work"
+
+
+@pytest.mark.parametrize(
+    "citation",
+    [
+        "Private Person. (n.d.).",
+        "Student ID. (2024). Prepared by.",
+        "Named Author. (n.d.). (n.d.).",
+    ],
+)
+def test_apa_placeholder_or_private_metadata_is_never_a_query(citation):
+    assert extract_bibliography(f"Learning Resources 1. {citation}") == ()
+
+
+@pytest.mark.parametrize("heading", ["Learning Resources 1.", "References\n[1]"])
+@pytest.mark.parametrize("label", ["ID No.", "ID Number"])
+def test_apa_author_identifiers_are_never_public_queries(heading, label):
+    source = f"{heading} Doe, Jane, {label} 20240001. (n.d.). A Useful Work."
+    assert extract_bibliography(source) == ()
+
+
+@pytest.mark.parametrize("heading", ["Learning Resources 1.", "References\n[1]"])
+@pytest.mark.parametrize("title", ["What is color in UX design?", "Design for color!"])
+@pytest.mark.parametrize(
+    "suffix", ["Retrieved from https://ixdf.org.", "Scientific American."]
+)
+def test_apa_question_and_exclamation_titles_exclude_citation_suffixes(
+    heading, title, suffix
+):
+    found = extract_bibliography(
+        f"{heading} Interaction Design Foundation. (2017). {title} {suffix}"
+    )
+    assert len(found) == 1
+    assert found[0].reference.title == title
+    assert "Retrieved" not in found[0].query
+
+
+@pytest.mark.parametrize("title", ["(n.d.)", "(2025)", "2025", "Retrieved from"])
+def test_apa_metadata_alone_is_not_a_work_title(title):
+    assert (
+        extract_bibliography(f"Learning Resources 1. Named Author. (n.d.). {title}.")
+        == ()
+    )
+
+
 def test_learning_resources_multiline_stops_at_next_heading_even_if_apa_like():
     source = (
         "Learning Resources\n"
@@ -544,7 +654,7 @@ def test_search_inspects_bounded_candidates_until_a_real_page_match():
     )
     assert report["references"][0]["status"] == "matched"
     assert report["references"][0]["source_url"] == "https://example.org/study"
-    assert report["attempts"] == {"search": 1, "source": 2}
+    assert report["attempts"] == {"search": 1, "source": 3}
     assert "https://example.org/unused" not in [
         request.url for request in transport.requests
     ]
@@ -662,7 +772,7 @@ def test_source_redirect_limit_is_recorded_without_following_third_redirect():
     ]
 
 
-def test_source_redirect_to_private_destination_is_never_fetched():
+def test_source_redirect_to_private_destination_is_skipped_without_aborting():
     source = "References\n[1] Ada Author (2022). A Useful Study."
     transport = FakeTransport(
         {
@@ -678,6 +788,39 @@ def test_source_redirect_to_private_destination_is_never_fetched():
         )
     )
     assert report["references"][0]["status"] == "unavailable"
+    assert all("127.0.0.1" not in request.url for request in transport.requests)
+
+
+def test_unsafe_source_candidate_is_skipped_for_later_real_page():
+    source = "References\n[1] Ada Author (2022). A Useful Study."
+    page = (
+        b"<html><head><title>A Useful Study</title></head><body><p>"
+        b"This useful study reports detailed findings and methods from a"
+        b" reproducible analysis at multiple sites.</p></body></html>"
+    )
+    transport = FakeTransport(
+        {
+            "duckduckgo": Response(
+                200,
+                {},
+                ddg_results(
+                    ("A Useful Study", "https://example.org/unsafe"),
+                    ("A Useful Study", "https://example.org/study"),
+                ),
+            ),
+            "https://example.org/unsafe": Response(
+                302, {"location": "https://127.0.0.1/private"}, b""
+            ),
+            "https://example.org/study": Response(200, {}, page),
+        }
+    )
+    report = asyncio.run(
+        build_public_reference_report(
+            source, enabled=True, settings=Settings(), transport=transport
+        )
+    )
+    assert report["references"][0]["status"] == "matched"
+    assert report["references"][0]["source_url"] == "https://example.org/study"
     assert all("127.0.0.1" not in request.url for request in transport.requests)
 
 
@@ -750,7 +893,7 @@ def test_search_tries_through_fifth_candidate_and_stops_after_match():
     ]
     assert [
         request.url for request in transport.requests if request.kind == "document"
-    ] == urls[:4]
+    ] == [*urls[:3], urls[2], urls[3]]
 
 
 def test_all_source_candidates_unavailable_leave_no_excerpt_or_private_errors():
@@ -1167,60 +1310,189 @@ def test_search_readiness_does_not_require_provider_key():
     assert readiness_config(NoSearch(), enabled=True, needs_search=True)["ready"]
 
 
-def test_search_provider_failure_fails_tool_run():
+def test_search_provider_failure_is_recorded_and_source_less_pipeline_still_fails():
     class FailingProvider:
         async def get(self, request, deadline):
             if request.kind == "duckduckgo":
                 return Response(503, {}, b"")
             return Response(404, {}, b"")
 
-    with pytest.raises(VerificationError) as exc:
-        asyncio.run(
-            build_public_reference_report(
-                "References\n[1] Ada Author (2022). A Useful Study.",
-                enabled=True,
-                settings=Settings(),
-                transport=FailingProvider(),
+    report = asyncio.run(
+        build_public_reference_report(
+            "References\n[1] Ada Author (2022). A Useful Study.",
+            enabled=True,
+            settings=Settings(),
+            transport=FailingProvider(),
+        )
+    )
+    assert set(report["references"][0]["errors"]) == {Code.HTTP.value}
+    assert report["attempts"]["search"] == 4
+    with pytest.raises(AgentExecutionError, match="usable public reference passage"):
+        _references(
+            SimpleNamespace(
+                precomputed_context={
+                    "public_reference_verification": (json.dumps(report),)
+                },
+                form_snapshot=SimpleNamespace(adapter_version=3),
             )
         )
-    assert exc.value.code == Code.HTTP
 
 
-def test_registry_provider_failure_does_not_fall_back_to_search():
+def test_transient_search_503_retries_once_and_keeps_usable_passage():
+    class RecoveringProvider:
+        requests = []
+
+        async def get(self, request, deadline):
+            self.requests.append(request)
+            if request.kind == "duckduckgo":
+                if sum(item.kind == "duckduckgo" for item in self.requests) == 1:
+                    return Response(503, {}, b"")
+                return Response(200, {}, ddg_result())
+            return Response(
+                200,
+                {},
+                b"<html><head><title>A Useful Study</title></head><body><p>"
+                b"This useful study reports detailed findings and methods from a"
+                b" reproducible analysis at multiple sites.</p></body></html>",
+            )
+
+    transport = RecoveringProvider()
+    report = asyncio.run(
+        build_public_reference_report(
+            "References\n[1] Ada Author (2022). A Useful Study.",
+            enabled=True,
+            settings=Settings(),
+            transport=transport,
+        )
+    )
+    assert report["references"][0]["status"] == "matched"
+    assert report["attempts"] == {"search": 2, "source": 1}
+
+
+def test_global_deadline_keeps_completed_reference_and_stops_requests():
+    class Clock:
+        value = 0
+
+        def __call__(self):
+            return self.value
+
+    clock = Clock()
+    page = (
+        b"<html><head><title>A Useful Study</title></head><body><p>"
+        b"This useful study reports detailed findings and methods from a"
+        b" reproducible analysis at multiple sites.</p></body></html>"
+    )
+
+    class DeadlineTransport:
+        requests = []
+
+        async def get(self, request, deadline):
+            self.requests.append(request)
+            if request.kind == "duckduckgo":
+                return Response(200, {}, ddg_result())
+            clock.value = 45
+            return Response(200, {}, page)
+
+    transport = DeadlineTransport()
+    report = asyncio.run(
+        build_public_reference_report(
+            "References\n"
+            "[1] Ada Author (2022). A Useful Study.\n"
+            "[2] Bea Author (2023). Another Useful Study.",
+            enabled=True,
+            settings=Settings(),
+            transport=transport,
+            clock=clock,
+        )
+    )
+    assert len(report["references"]) == 1
+    assert report["references"][0]["status"] == "matched"
+    assert report["coverage"] == {"found": 2, "checked": 1, "skipped": 1, "total": 2}
+    assert len(transport.requests) == 2
+
+
+def test_registry_provider_failure_falls_back_without_claiming_registry_match():
     class FailingRegistry:
         async def get(self, request, deadline):
             if request.kind == "crossref":
                 return Response(503, {}, b"")
             return Response(404, {}, b"")
 
-    with pytest.raises(VerificationError) as exc:
-        asyncio.run(
-            build_public_reference_report(
-                "References\n[1] Ada Author (2022). A Useful Study. "
-                "https://doi.org/10.1234/original",
-                enabled=True,
-                settings=Settings(),
-                transport=FailingRegistry(),
-            )
+    report = asyncio.run(
+        build_public_reference_report(
+            "References\n[1] Ada Author (2022). A Useful Study. "
+            "https://doi.org/10.1234/original",
+            enabled=True,
+            settings=Settings(),
+            transport=FailingRegistry(),
         )
-    assert exc.value.code == Code.HTTP
+    )
+    row = report["references"][0]
+    assert row["registry_status"] == "unavailable"
+    assert row["registry_matched_fields"] == []
+    assert set(row["errors"]) == {Code.HTTP.value}
+    assert report["attempts"]["search"] >= 1
 
 
-def test_provider_timeout_fails_with_safe_deadline_code():
+def test_registry_failure_plus_matching_page_is_usable_but_metadata_ambiguous():
+    class RegistryFailureWithPage:
+        async def get(self, request, deadline):
+            if request.kind == "crossref":
+                return Response(503, {}, b"")
+            if request.kind == "datacite":
+                return Response(404, {}, b"")
+            if request.kind == "duckduckgo":
+                return Response(200, {}, ddg_result())
+            return Response(
+                200,
+                {},
+                b"<html><head><title>A Useful Study</title></head><body><p>"
+                b"This useful study reports detailed findings and methods from a"
+                b" reproducible analysis at multiple sites.</p></body></html>",
+            )
+
+    report = asyncio.run(
+        build_public_reference_report(
+            "References\n[1] Ada Author (2022). A Useful Study. "
+            "https://doi.org/10.1234/original",
+            enabled=True,
+            settings=Settings(),
+            transport=RegistryFailureWithPage(),
+        )
+    )
+    row = report["references"][0]
+    assert row["registry_status"] == "unavailable"
+    assert row["status"] == "ambiguous"
+    assert row["matched_fields"] == ["page_title"]
+    assert set(row["unverified_fields"]) == {"author", "year", "doi"}
+    assert row["registry_matched_fields"] == []
+    assert _references(
+        SimpleNamespace(
+            precomputed_context={
+                "public_reference_verification": (json.dumps(report),)
+            },
+            form_snapshot=SimpleNamespace(adapter_version=3),
+        )
+    ) == [json.dumps(report)]
+
+
+def test_provider_timeout_is_recorded_and_safe_to_continue():
     class SlowProvider:
         async def get(self, request, deadline):
             raise TimeoutError
 
-    with pytest.raises(VerificationError) as exc:
-        asyncio.run(
-            build_public_reference_report(
-                "References\n[1] Ada Author (2022). A Useful Study.",
-                enabled=True,
-                settings=Settings(),
-                transport=SlowProvider(),
-            )
+    report = asyncio.run(
+        build_public_reference_report(
+            "References\n[1] Ada Author (2022). A Useful Study.",
+            enabled=True,
+            settings=Settings(),
+            transport=SlowProvider(),
         )
-    assert exc.value.code == Code.DEADLINE
+    )
+    assert report["references"][0]["errors"] == [
+        Code.DEADLINE.value,
+        Code.DEADLINE.value,
+    ]
 
 
 @pytest.mark.parametrize(
@@ -1544,16 +1816,15 @@ def test_fallback_shares_original_total_deadline():
             return Response(403, {}, b"")
 
     transport = TimedTransport()
-    with pytest.raises(VerificationError) as exc:
-        asyncio.run(
-            build_public_reference_report(
-                "References\n[1] Ada Author (2022). A Useful Study.",
-                enabled=True,
-                settings=Settings(),
-                transport=transport,
-                clock=clock,
-            )
+    report = asyncio.run(
+        build_public_reference_report(
+            "References\n[1] Ada Author (2022). A Useful Study.",
+            enabled=True,
+            settings=Settings(),
+            transport=transport,
+            clock=clock,
         )
-    assert exc.value.code == Code.DEADLINE
+    )
+    assert report["references"][0]["status"] == "unavailable"
     assert transport.searches == 2
     assert max(transport.deadlines) == clock.value == 45
