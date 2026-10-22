@@ -66,7 +66,9 @@ def _make_course_with_map(
         course_code="IT301", course_title="Data Structures", program=program
     )
     objective = CurriculumObjective(
-        code="IT08", description="Teamwork", program=program
+        code="CS07" if program.strip().upper() == "BSCS" else "IT08",
+        description="Teamwork",
+        program=program,
     )
     db_session.add_all([course, objective])
     db_session.flush()
@@ -231,6 +233,63 @@ def test_list_courses_returns_seeded_courses(db_session) -> None:
     assert [c.course_id for c in courses] == [course.course_id]
 
 
+@pytest.mark.parametrize("valid_response", [True, False])
+def test_admin_changes_during_check_preserve_its_reference_snapshot(
+    db_session, seeded_user, valid_response
+):
+    from server.modules.curriculum.management import save_mappings, save_objective
+    from server.modules.curriculum.management_schemas import MappingEdit, ObjectiveEdit
+
+    course, objective = _make_course_with_map(db_session)
+    document = _make_document(db_session, uploaded_by=seeded_user.user_id)
+    _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
+
+    class EditingClient(FakeClient):
+        def generate(self, prompt, **kwargs):
+            save_objective(
+                db_session,
+                seeded_user.user_id,
+                ObjectiveEdit(
+                    code="IT08",
+                    description="New wording",
+                    program="BSInfoTech",
+                    version=1,
+                ),
+                objective.objective_id,
+            )
+            save_mappings(
+                db_session,
+                seeded_user.user_id,
+                course.course_id,
+                MappingEdit(
+                    version=1,
+                    entries=[{"objective_id": objective.objective_id, "level": "I"}],
+                ),
+            )
+            return super().generate(prompt, **kwargs)
+
+    check = run_curriculum_alignment_check(
+        document_id=document.document_id,
+        course_id=course.course_id,
+        current_user_id=seeded_user.user_id,
+        db=db_session,
+        llm_client=EditingClient(_ok_payload() if valid_response else "not json"),
+    )
+    assert check.success is valid_response
+    reference = check.provenance["curriculum_reference"]
+    assert reference["course_mapping_version"] == 1
+    assert reference["objectives"][0]["description"] == "Teamwork"
+    assert reference["objectives"][0]["version"] == 1
+    assert reference["objectives"][0]["expected_level"] == "D"
+    assert (
+        db_session.get(CurriculumObjective, objective.objective_id).description
+        == "New wording"
+    )
+    if valid_response:
+        assert check.objective_results[0]["description"] == "Teamwork"
+        assert check.objective_results[0]["expected_level"] == "D"
+
+
 # ── Validation gates (all before any LLM acquisition/call) ────────────────
 
 
@@ -315,7 +374,7 @@ def test_run_check_rejects_document_without_usable_chunks(db_session) -> None:
 def test_run_check_rejects_unsupported_document_program(db_session) -> None:
     course, _ = _make_course_with_map(db_session)
     owner = uuid.uuid4()
-    document = _make_document(db_session, uploaded_by=owner, program="BSCS")
+    document = _make_document(db_session, uploaded_by=owner, program="BSIS")
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
     with pytest.raises(DocumentProgramError):
@@ -360,8 +419,7 @@ def test_run_check_raises_when_course_not_found(db_session) -> None:
 
 
 def test_run_check_rejects_unsupported_course_program(db_session) -> None:
-    # Document is a valid BSInfoTech SLM; the course is owned by BSCS.
-    course, _ = _make_course_with_map(db_session, program="BSCS")
+    course, _ = _make_course_with_map(db_session, program="BSIS")
     owner = uuid.uuid4()
     document = _make_document(db_session, uploaded_by=owner, program="BSInfoTech")
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
@@ -377,9 +435,7 @@ def test_run_check_rejects_unsupported_course_program(db_session) -> None:
 
 
 def test_course_document_program_mismatch_is_refused(db_session) -> None:
-    # Defensive invariant of _validate_course_program: even though the public
-    # flow normalizes the document gate to BSInfoTech before reaching this
-    # check, an explicit mismatch is still refused rather than assumed equal.
+    # Both programs are supported, but a cross-program pair must be refused.
     class StubCourse:
         course_code = "IT301"
         program = "BSInfoTech"
@@ -408,11 +464,43 @@ def test_run_check_accepts_legacy_bsit_alias_program(db_session) -> None:
     assert check.success is True
 
 
-def test_run_check_rejects_foreign_objective_program(db_session) -> None:
-    course, _ = _make_course_with_map(db_session, program="BSInfoTech")
-    # A BSCS objective leaked into the BSInfoTech map must be rejected.
+@pytest.mark.parametrize("program", ["BSCS", " bscs ", "BSInfoTech", "BSIT"])
+def test_run_check_accepts_supported_program_with_grounded_results(db_session, program):
+    course, objective = _make_course_with_map(db_session, program=program)
+    owner = uuid.uuid4()
+    document = _make_document(db_session, uploaded_by=owner, program=program)
+    _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
+    client = FakeClient(_ok_payload(code=objective.code))
+
+    check = run_curriculum_alignment_check(
+        document_id=document.document_id,
+        course_id=course.course_id,
+        current_user_id=owner,
+        db=db_session,
+        llm_client=client,
+    )
+
+    assert check.success is True
+    assert len(client.calls) == 1
+    assert check.objective_results[0]["code"] == objective.code
+    assert check.objective_results[0]["evidence"] == _PAGE_TEXT
+    assert check.objective_results[0]["evidence_page"] == 1
+    assert (
+        check.provenance["curriculum_reference"]["objectives"][0]["code"]
+        == objective.code
+    )
+
+
+@pytest.mark.parametrize(
+    ("course_program", "foreign_program"),
+    [("BSInfoTech", "BSCS"), ("BSCS", "BSInfoTech"), ("BSCS", "BSIS")],
+)
+def test_run_check_rejects_foreign_objective_program(
+    db_session, course_program, foreign_program
+) -> None:
+    course, _ = _make_course_with_map(db_session, program=course_program)
     foreign_objective = CurriculumObjective(
-        code="CS101", description="CS topic", program="BSCS"
+        code="FOREIGN01", description="Foreign program topic", program=foreign_program
     )
     db_session.add(foreign_objective)
     db_session.flush()
@@ -426,7 +514,7 @@ def test_run_check_rejects_foreign_objective_program(db_session) -> None:
     db_session.commit()
 
     owner = uuid.uuid4()
-    document = _make_document(db_session, uploaded_by=owner)
+    document = _make_document(db_session, uploaded_by=owner, program=course_program)
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
     with pytest.raises(CurriculumMapProgramError):
@@ -439,12 +527,13 @@ def test_run_check_rejects_foreign_objective_program(db_session) -> None:
         )
 
 
-def test_run_check_raises_when_no_curriculum_map(db_session) -> None:
-    course = Course(course_code="IT999", course_title="Unmapped", program="BSInfoTech")
+@pytest.mark.parametrize("program", ["BSCS", "BSInfoTech"])
+def test_run_check_raises_when_no_curriculum_map(db_session, program) -> None:
+    course = Course(course_code="UNMAPPED", course_title="Unmapped", program=program)
     db_session.add(course)
     db_session.commit()
     owner = uuid.uuid4()
-    document = _make_document(db_session, uploaded_by=owner)
+    document = _make_document(db_session, uploaded_by=owner, program=program)
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
     with pytest.raises(NoCurriculumMapError):

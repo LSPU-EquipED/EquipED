@@ -6,6 +6,7 @@ import type {
   AlignmentCoverageScope,
   AlignmentProvenance,
   AlignmentStatus,
+  Course,
 } from '../types';
 
 export type AlignmentSelectionState = {
@@ -30,6 +31,7 @@ export function alignmentSelectionReducer(
       return {
         ...state,
         documentId: action.documentId,
+        courseId: '',
         activeCheckId: null,
       };
     case 'setCourse':
@@ -72,10 +74,22 @@ export type AlignmentDocumentEligibility = {
   message: string;
 };
 
-const SUPPORTED_ALIGNMENT_PROGRAMS = new Set(['bsinfotech', 'bsit']);
+const SUPPORTED_ALIGNMENT_PROGRAMS = new Set(['bscs', 'bsinfotech']);
 
 function normalizeProgram(value: string | null | undefined): string {
-  return (value ?? '').replace(/\s+/g, '').toLowerCase();
+  const normalized = (value ?? '').replace(/\s+/g, '').toLowerCase();
+  return normalized === 'bsit' ? 'bsinfotech' : normalized;
+}
+
+export function getAlignmentCoursesForDocument(
+  courses: Course[],
+  document: ClientDocument | null,
+): Course[] {
+  return courses.filter((course) => {
+    const program = normalizeProgram(course.program);
+    return SUPPORTED_ALIGNMENT_PROGRAMS.has(program)
+      && (!document || program === normalizeProgram(document.program));
+  });
 }
 
 export function getAlignmentDocumentEligibility(document?: ClientDocument | null): AlignmentDocumentEligibility {

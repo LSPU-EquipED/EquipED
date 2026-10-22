@@ -1,0 +1,32 @@
+{
+  "program": "BSCS",
+  "source": "User-provided curriculum matrix, 2026-10-23; SMBFPO1, SMFBPO2 and CMSC 503 codes confirmed by the user. Only clearly readable complete mapping rows are included. Remaining matrix rows require verification.",
+  "objective_order": ["CS01", "CS02", "CS03", "CS04", "CS05", "CS06", "CS07", "CS08", "CS09", "CS10"],
+  "courses": [
+    {
+      "course_code": "SMBFPO1",
+      "course_title": "Fundamentals of Business Process Outsourcing 101",
+      "levels": ["E", "E", "E", "E", "E", "E", "E", "E", "E", "E"]
+    },
+    {
+      "course_code": "CMSC 501",
+      "course_title": "Undergraduate Thesis 1",
+      "levels": ["D", "D", "D", "D", "D", "D", "D", "D", "D", "D"]
+    },
+    {
+      "course_code": "CMSC 502",
+      "course_title": "Undergraduate Thesis 2",
+      "levels": ["D", "D", "D", "D", "D", "D", "D", "D", "D", "D"]
+    },
+    {
+      "course_code": "SMFBPO2",
+      "course_title": "Fundamentals of Business Process Outsourcing 102",
+      "levels": ["E", "E", "E", "E", "E", "E", "E", "E", "E", "E"]
+    },
+    {
+      "course_code": "CMSC 503",
+      "course_title": "Practicum Internship",
+      "levels": ["D", "D", "D", "D", "D", "D", "D", "D", "D", "D"]
+    }
+  ]
+}

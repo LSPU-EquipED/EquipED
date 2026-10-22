@@ -114,8 +114,8 @@ export function AlignmentCheckControls({
               menuClassName="w-full"
               hint={
                 noModules
-                  ? "No processed BSInfoTech SLMs available."
-                  : "Processed BSInfoTech SLMs only."
+                  ? "No processed BSCS or BSInfoTech SLMs available."
+                  : "Processed BSCS and BSInfoTech SLMs only."
               }
             />
             {documentsError && (
@@ -160,7 +160,7 @@ export function AlignmentCheckControls({
               menuClassName="w-full"
               hint={
                 noCourses
-                  ? "No mapped courses available. Contact your administrator."
+                  ? "No courses available for this program. Contact your administrator."
                   : undefined
               }
             />

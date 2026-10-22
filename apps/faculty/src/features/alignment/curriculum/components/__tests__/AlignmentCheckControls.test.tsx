@@ -100,7 +100,7 @@ describe("AlignmentCheckControls", () => {
   it("explains an empty eligible picker and links to owned module storage", () => {
     render(<AlignmentCheckControls {...props({ pickerDocuments: [] })} />);
     expect(
-      screen.getByText("No processed BSInfoTech SLMs available."),
+      screen.getByText("No processed BSCS or BSInfoTech SLMs available."),
     ).toBeDefined();
     expect(
       (screen.getByRole("button", { name: "Module" }) as HTMLButtonElement)
@@ -123,7 +123,7 @@ describe("AlignmentCheckControls", () => {
     const view = render(<AlignmentCheckControls {...input} />);
     expect(screen.getByText("Loading modules…")).toBeDefined();
     expect(
-      screen.queryByText("No processed BSInfoTech SLMs available."),
+      screen.queryByText("No processed BSCS or BSInfoTech SLMs available."),
     ).toBeNull();
     view.rerender(
       <AlignmentCheckControls

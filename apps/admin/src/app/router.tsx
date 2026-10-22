@@ -11,6 +11,11 @@ import { appRouterContext } from './runtime';
 import type { AppRouterContext } from './runtime';
 import { requireRole, navigateCrossApp } from '@equiped/auth';
 
+const CurriculumObjectivesPage = lazyRouteComponent(
+  () => import('../features/curriculum-objectives/pages/CurriculumObjectivesPage'),
+  'CurriculumObjectivesPage',
+);
+
 // Lazy Admin Pages
 const AdminHomePage = lazyRouteComponent(
   () => import('../features/home/pages/AdminHomePage'),
@@ -27,10 +32,6 @@ const AdminUploadPage = lazyRouteComponent(
 const ReferenceLibraryPage = lazyRouteComponent(
   () => import('../features/reference-library/pages/ReferenceLibraryPage'),
   'ReferenceLibraryPage',
-);
-const AgentPromptPage = lazyRouteComponent(
-  () => import('../features/agent-prompt/pages/AgentPromptPage'),
-  'AgentPromptPage',
 );
 const PreferenceLogPage = lazyRouteComponent(
   () => import('../features/preference-log/pages/PreferenceLogPage'),
@@ -123,27 +124,17 @@ const adminIngestRoute = createRoute({
   component: AdminUploadPage,
 });
 
+const adminCurriculumObjectivesRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'curriculum-objectives',
+  beforeLoad: requireRole(['admin']),
+  component: CurriculumObjectivesPage,
+});
+
 const adminReferencesRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'references',
   component: ReferenceLibraryPage,
-});
-
-const adminPromptsRoute = createRoute({
-  getParentRoute: () => adminRoute,
-  path: 'prompts',
-  beforeLoad: ({ location }) => {
-    if (location.pathname === '/admin/prompts') {
-      throw redirect({ to: '/admin/prompts/$agentId', params: { agentId: 'coordinator' } });
-    }
-  },
-  component: Outlet,
-});
-
-const adminPromptDetailRoute = createRoute({
-  getParentRoute: () => adminPromptsRoute,
-  path: '$agentId',
-  component: AgentPromptPage,
 });
 
 const adminTrainingDataRoute = createRoute({
@@ -235,7 +226,7 @@ const routeTree = rootRoute.addChildren([
       adminUsersRoute,
       adminIngestRoute,
       adminReferencesRoute,
-      adminPromptsRoute.addChildren([adminPromptDetailRoute]),
+      adminCurriculumObjectivesRoute,
       adminTrainingDataRoute.addChildren([adminTrainingDataDetailRoute]),
       adminPreferencesRoute,
       adminRubricsRoute,

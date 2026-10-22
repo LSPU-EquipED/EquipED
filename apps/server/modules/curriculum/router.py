@@ -11,11 +11,26 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from server.core.database import get_db_session
-from server.modules.auth.dependencies import require_authenticated_user
+from server.modules.auth.dependencies import require_admin, require_authenticated_user
 from server.modules.auth.service import AuthenticatedUser
 
 from .exceptions import (
     RoadmapNotFoundError,
+)
+from .management import (
+    CatalogError,
+    catalog,
+    course_mappings,
+    save_mappings,
+    save_objective,
+)
+from .management_schemas import (
+    MappingEdit,
+    MappingResponse,
+    ObjectiveEdit,
+    ObjectiveInput,
+    ObjectiveListResponse,
+    ObjectiveResponse,
 )
 from .schemas import (
     CourseListResponse,
@@ -34,6 +49,57 @@ from .service import (
 )
 
 router = APIRouter(prefix="/curriculum-map", tags=["curriculum-map"])
+
+
+@router.get("/admin/objectives", response_model=ObjectiveListResponse)
+def admin_objectives(user=Depends(require_admin), db=Depends(get_db_session)):
+    return catalog(db)
+
+
+@router.post("/admin/objectives", status_code=201, response_model=ObjectiveResponse)
+def admin_create_objective(
+    data: ObjectiveInput, user=Depends(require_admin), db=Depends(get_db_session)
+):
+    try:
+        return save_objective(db, user.id, data)
+    except CatalogError as exc:
+        raise HTTPException(exc.status, str(exc)) from exc
+
+
+@router.put("/admin/objectives/{objective_id}", response_model=ObjectiveResponse)
+def admin_edit_objective(
+    objective_id: UUID,
+    data: ObjectiveEdit,
+    user=Depends(require_admin),
+    db=Depends(get_db_session),
+):
+    try:
+        return save_objective(db, user.id, data, objective_id)
+    except CatalogError as exc:
+        raise HTTPException(exc.status, str(exc)) from exc
+
+
+@router.get("/admin/courses/{course_id}/mappings", response_model=MappingResponse)
+def admin_course_mappings(
+    course_id: UUID, user=Depends(require_admin), db=Depends(get_db_session)
+):
+    try:
+        return course_mappings(db, course_id)
+    except CatalogError as exc:
+        raise HTTPException(exc.status, str(exc)) from exc
+
+
+@router.put("/admin/courses/{course_id}/mappings", response_model=MappingResponse)
+def admin_save_mappings(
+    course_id: UUID,
+    data: MappingEdit,
+    user=Depends(require_admin),
+    db=Depends(get_db_session),
+):
+    try:
+        return save_mappings(db, user.id, course_id, data)
+    except CatalogError as exc:
+        raise HTTPException(exc.status, str(exc)) from exc
 
 
 @router.get("/courses", response_model=CourseListResponse)
@@ -150,8 +216,6 @@ def list_roadmap_courses_endpoint(
         )
         for c in courses
     ]
-
-
 
 
 __all__ = ["router"]

@@ -61,7 +61,13 @@ rounded:
 
 # EquipED Design System
 
+## Curriculum objective management
+
+The Admin Knowledge Base includes Curriculum Objectives with an objective catalog and a course-mapping view. Use compact tables, code/description search, a program filter, mapping counts, and a focused add/edit dialog. Program is a required dropdown with only BSCS and BSInfoTech; keep UUIDs out of the form. Standalone alignment supports both programs. Explain that objectives require course mappings before use, and show an explicit unmapped state. The faculty module picker accepts processed SLMs from both programs; filter target courses to the selected module's program and clear the course selection when changing modules. Course mappings use labelled I/E/D choices and Not mapped, with an explicit Save action. Preserve entered values after failures, explain stale-edit conflicts, protect unsaved changes, and retain keyboard focus within the objective dialog.
+
 ## Direction
+
+Admin Model Governance contains Knowledge Map, Model Validation, Model Training, and Preference Logs. Agent Prompts has no navigation entry or page in the admin portal.
 
 **Institutional Workbench** is the visual direction for EquipED: a calm, evidence-first workspace for evaluating Self-Paced Learning Modules (SLMs). It should feel dependable during long review sessions, closer to a well-made academic records system than a marketing dashboard.
 

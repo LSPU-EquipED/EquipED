@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from server.modules.curriculum.models import (
     Course,
     CurriculumMapCell,
@@ -284,6 +283,11 @@ def test_seed_fails_actionably_on_bsit_bsinfotech_duplicate(db_session) -> None:
     would collapse two institutional rows — the seed must refuse."""
     payload = _load_payload()
     seed_curriculum_map(db_session, payload)
+    # Simulate a database predating the normalized uniqueness migration;
+    # the seed retains its actionable pre-migration collision safeguard.
+    from sqlalchemy import text
+
+    db_session.execute(text("DROP INDEX uq_curriculum_objective_normalized"))
 
     first = db_session.query(CurriculumObjective).first()
     db_session.add(

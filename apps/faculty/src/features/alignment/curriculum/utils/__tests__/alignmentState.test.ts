@@ -7,6 +7,7 @@ import {
   buildCoverageBanner,
   buildDisplayedSummary,
   getAlignmentDocumentEligibility,
+  getAlignmentCoursesForDocument,
   getAlignmentRequestErrorState,
   getCoverageMetadata,
   getEvidenceNavigation,
@@ -14,7 +15,7 @@ import {
 } from '../alignmentState';
 
 describe('alignmentSelectionReducer', () => {
-  it('clears active check when document changes', () => {
+  it('clears the course and active check when document changes', () => {
     const state: AlignmentSelectionState = {
       documentId: 'doc-1',
       courseId: 'course-1',
@@ -29,7 +30,7 @@ describe('alignmentSelectionReducer', () => {
     expect(nextState).toMatchObject({
       documentId: 'doc-2',
       activeCheckId: null,
-      courseId: 'course-1',
+      courseId: '',
     });
   });
 
@@ -69,6 +70,27 @@ describe('document eligibility', () => {
     uploadedAt: new Date().toISOString(),
     chunks: [],
   };
+
+  it.each(['BSCS', ' bscs ', 'BSInfoTech', 'BSIT'])(
+    'accepts a processed %s SLM and filters courses to that program',
+    (program) => {
+      const document = { ...baseDocument, program };
+      expect(getAlignmentDocumentEligibility(document).eligible).toBe(true);
+      const courses = [
+        { course_id: 'cs', course_code: 'CMSC 101', course_title: 'CS', program: 'BSCS' },
+        { course_id: 'it', course_code: 'ITEC 101', course_title: 'IT', program: 'BSInfoTech' },
+        { course_id: 'legacy-it', course_code: 'IT101', course_title: 'Legacy IT', program: 'BSIT' },
+        { course_id: 'is', course_code: 'IS101', course_title: 'IS', program: 'BSIS' },
+      ];
+      expect(getAlignmentCoursesForDocument(courses, document).map((x) => x.course_id))
+        .toEqual(program.trim().toUpperCase() === 'BSCS' ? ['cs'] : ['it', 'legacy-it']);
+      expect(getAlignmentCoursesForDocument(courses, null)).toHaveLength(3);
+    },
+  );
+
+  it.each(['BSIS', '', null])('rejects an unsupported or absent program: %s', (program) => {
+    expect(getAlignmentDocumentEligibility({ ...baseDocument, program }).eligible).toBe(false);
+  });
 
   it('filters out non-SLM / unprocessed docs for run eligibility', () => {
     expect(getAlignmentDocumentEligibility(baseDocument).eligible).toBe(true);

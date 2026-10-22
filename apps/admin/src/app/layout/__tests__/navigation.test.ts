@@ -16,8 +16,8 @@ describe('isNavigationActive', () => {
   });
 
   it('matches child routes when exact is false', () => {
-    expect(isNavigationActive('/admin/prompts', '/admin/prompts', false)).toBe(true);
-    expect(isNavigationActive('/admin/prompts/coordinator', '/admin/prompts', false)).toBe(true);
+    expect(isNavigationActive('/admin/training-data', '/admin/training-data', false)).toBe(true);
+    expect(isNavigationActive('/admin/training-data/coordinator', '/admin/training-data', false)).toBe(true);
     expect(isNavigationActive('/matrix', '/matrix', false)).toBe(true);
     expect(isNavigationActive('/evaluation-map', '/evaluation-map', false)).toBe(true);
   });
@@ -38,10 +38,10 @@ describe('admin navigation group structure', () => {
       { to: '/matrix', label: 'Monitoring Matrix' },
       { to: '/admin/ingest', label: 'Reference Ingestion' },
       { to: '/admin/references', label: 'Reference Library' },
+      { to: '/admin/curriculum-objectives', label: 'Curriculum Objectives' },
       { to: '/admin/rubrics', label: 'Rubric Editor' },
       { to: '/evaluation-map', label: 'Knowledge Map' },
       { to: '/admin/model-validation', label: 'Model Validation' },
-      { to: '/admin/prompts', label: 'Agent Prompts' },
       { to: '/admin/training-data', label: 'Model Training' },
       { to: '/admin/preferences', label: 'Preference Logs' },
     ]);
@@ -108,9 +108,9 @@ describe('getBreadcrumbs', () => {
     ]);
   });
 
-  it('returns Agent Prompts > Coordinator for /admin/prompts/coordinator', () => {
-    expect(getBreadcrumbs('/admin/prompts/coordinator')).toEqual([
-      { label: 'Agent Prompts', to: '/admin/prompts' },
+  it('returns Model Training > Coordinator for /admin/training-data/coordinator', () => {
+    expect(getBreadcrumbs('/admin/training-data/coordinator')).toEqual([
+      { label: 'Model Training', to: '/admin/training-data' },
       { label: 'Coordinator' },
     ]);
   });

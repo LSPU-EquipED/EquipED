@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from typing import Any
 
 from server.core.llm import get_llm_client
@@ -76,7 +77,27 @@ def run_curriculum_alignment_check(
         raise NoCurriculumMapError(
             f"No curriculum map seeded for course {course.course_code}"
         )
-    validate_objective_programs(mapped)
+    validate_objective_programs(mapped, course.program)
+    coverage_reference = {
+        "course_mapping_version": mapped[0].get(
+            "course_mapping_version", course.mapping_version
+        ),
+        "objectives": [
+            {
+                key: item[key]
+                for key in (
+                    "objective_id",
+                    "version",
+                    "mapping_id",
+                    "code",
+                    "description",
+                    "expected_level",
+                )
+                if key in item
+            }
+            for item in mapped
+        ],
+    }
 
     evaluated_pages, coverage = select_pages_within_budget(pages, _MAX_SLM_TEXT_CHARS)
     if not evaluated_pages:
@@ -101,6 +122,13 @@ def run_curriculum_alignment_check(
             fallback_model=getattr(client, "model", None),
             total_mapped_objectives=len(mapped),
         )
+        result = replace(
+            result,
+            provenance={
+                **result.provenance,
+                "curriculum_reference": coverage_reference,
+            },
+        )
         return persist_alignment_check(
             db=db,
             document_id=document_id,
@@ -114,6 +142,10 @@ def run_curriculum_alignment_check(
         fallback_model=getattr(client, "model", None),
         mapped=mapped,
         evaluated_pages=evaluated_pages,
+    )
+    result = replace(
+        result,
+        provenance={**result.provenance, "curriculum_reference": coverage_reference},
     )
     return persist_alignment_check(
         db=db,

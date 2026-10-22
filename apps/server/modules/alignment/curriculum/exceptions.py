@@ -61,7 +61,7 @@ class NoUsableDocumentTextError(Exception):
 
 class DocumentProgramError(Exception):
     """Raised when the document's program is not the alignment-supported
-    program (``BSInfoTech``; ``BSIT`` is only a read alias).
+    programs (``BSCS`` and ``BSInfoTech``; ``BSIT`` is a read alias).
 
     Router maps to 422.
     """
@@ -74,8 +74,8 @@ class CourseProgramMismatchError(Exception):
 
 
 class CurriculumMapProgramError(Exception):
-    """Raised when a mapped objective belongs to a program other than the
-    alignment-supported ``BSInfoTech`` (``BSIT`` read alias).
+    """Raised when a mapped objective's program is unsupported or differs
+    from the selected course's program (``BSIT`` remains a read alias).
 
     Router maps to 422.
     """
