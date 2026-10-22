@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ArchivedExperiment, ArchivedOutput } from '../archiveTypes';
-import { fineTunedModelLabel } from '../utils/archivePresentation';
+import { FINE_TUNED_MODEL_LABEL } from '../utils/archivePresentation';
 
 function Output({ label, value }: { label: string; value: ArchivedOutput }) {
   return (
@@ -112,7 +112,7 @@ export function ArchivedEvidence({ experiment }: { experiment: ArchivedExperimen
       </div>
       <div className="grid min-w-0 gap-6 md:grid-cols-2">
         <Output label="Base" value={criterion.base} />
-        <Output label={fineTunedModelLabel(experiment.adapter_label)} value={criterion.adapter} />
+        <Output label={FINE_TUNED_MODEL_LABEL} value={criterion.adapter} />
       </div>
       {criterion.audit_note ? (
         <aside className="rounded-sm bg-info-soft p-3 text-sm leading-relaxed text-text">
