@@ -70,7 +70,7 @@ EquipEd addresses these problems by automating the initial evaluation layer — 
 | Role | Description | System Access |
 |---|---|---|
 | **Faculty Member** | Submits SLMs for evaluation; reviews flagged sections and scores to guide revisions | Upload SLMs; view own evaluation results and feedback |
-| **Admin / CID Staff** | Manages the system, reviews evaluator feedback, validates agent-generated outputs, updates agent configurations, monitors the full evaluation inventory | Full system access including evaluation history, preference logs, prompt management, and monitoring matrix |
+| **Admin / CID Staff** | Manages the system, reviews evaluator feedback, validates agent-generated outputs, maintains institutional references and rubrics, monitors the full evaluation inventory | Full system access including evaluation history, preference logs, rubric management, and monitoring matrix |
 
 ### 3.2 Evaluator Agent Domains
 
@@ -241,7 +241,7 @@ A persistent record of:
 |---|---|---|---|
 | FR-22 | The system shall log all admin Accept / Reject / Edit interactions as preference records, capturing the admin user role, timestamp, agent domain, and original output | D-06 | High |
 | FR-23 | The system shall version all agent evaluation prompts, associating each evaluation result with the prompt version that produced it | D-06 | Medium |
-| FR-24 | The system shall provide an admin interface for reviewing accumulated preference logs and applying prompt updates based on identified patterns | D-05, D-06 | Medium |
+| FR-24 | The system shall provide an admin interface for reviewing accumulated preference logs and identifying recurring disagreement patterns to inform calibration | D-05, D-06 | Medium |
 | FR-25 | The system shall record a traceable history of prompt updates, linking each change to the preference data that motivated it | D-06 | Medium |
 
 ---
@@ -276,6 +276,8 @@ A persistent record of:
 | CID Evaluated Forms | Output structure reference for report generation; baseline for preference logging | `[TBD]` |
 
 ### 8.2 Data Constraints
+
+Administrators can add/edit structured curriculum objectives and replace existing courses' I/E/D mappings through an authenticated admin workspace. The program choices are exactly BSCS and BSInfoTech. Standalone alignment accepts processed SLMs from both programs (including the legacy BSIT read alias), with a same-program course and same-program mapped objectives. Missing course mappings remain an explicit admission failure. Changes are audited and version-checked, ordinary reseeding preserves admin ownership, and historical alignment snapshots remain unchanged. UUID identities are immutable; deleting objectives and creating courses are outside this editor's scope.
 
 - Institutional evaluation criteria and alignment references come from LSPU CCS documents (syllabi, curriculum guides, rubrics). Every ITSO run searches public sources and retrieves available passages for criteria 1 and 2, using bibliography details or explicitly labelled lesson/topic names when citations are absent. These scoped checks do not replace institutional criteria or certify the whole document.
 - Public materials from other Philippine state universities may support secondary prompt calibration; private university materials are excluded from calibration policy. This calibration policy is separate from ITSO's configured public-reference verification.
@@ -345,15 +347,17 @@ unchanged; this is source preparation within Layer 3, not an additional layer.
 | **Postcondition** | Preference record stored. The SLM's feedback status in the Monitoring Matrix updates accordingly. |
 | **Exception** | If no feedback is submitted, the evaluation record remains unchanged and the prompt configuration is retained. |
 
-### UC-03: Admin Reviews Preference Logs and Refines Agent Prompts
+### UC-03: Admin Reviews Preference Logs
 
 | | |
 |---|---|
 | **Actor** | Admin / CID Staff |
 | **Precondition** | A sufficient volume of evaluator feedback has accumulated in the preference log (D-06). |
-| **Flow** | 1. Admin accesses the preference review interface and filters logs by agent domain and feedback type. 2. Admin identifies patterns where a specific agent consistently diverges from evaluator judgment. 3. Admin updates the affected agent's evaluation prompt and saves the new version. 4. System records the prompt update with a link to the preference data that motivated it. |
-| **Postcondition** | New prompt version is active for subsequent evaluations. Change is traceable in the prompt version history. |
-| **Exception** | If the update produces worse outcomes in subsequent evaluations, the admin can revert to a prior prompt version using the version history. |
+| **Flow** | 1. Admin accesses the preference review interface and filters logs by agent domain and feedback type. 2. Admin identifies patterns where a specific agent consistently diverges from evaluator judgment. 3. Admin reviews those patterns alongside model-validation results to inform subsequent improvement work. |
+| **Postcondition** | Evaluator feedback remains available for review and calibration. Reviewing logs does not change the active prompt. |
+| **Exception** | When no feedback matches the selected filters, the interface shows an empty state. |
+
+Agent prompt editing and version restoration are outside the admin portal. Existing backend prompt configuration, version records, and evaluation behavior are retained.
 
 ### UC-04: Admin Reviews Monitoring Matrix
 
@@ -400,7 +404,7 @@ unchanged; this is source preparation within Layer 3, not an additional layer.
 | OI-05 | CID evaluated forms not yet obtained | Blocks report structure reference and preference baseline (D-06) | Research team | Pending CID approval |
 | OI-06 | Processing time target undefined | Blocks NFR-06 definition | Research team | Pending prototype benchmarking |
 | OI-07 | LLM backend data handling policy not confirmed | Blocks NFR-04 and NFR-05 compliance confirmation | LSPU SCC IT / legal | Pending institutional review |
-| OI-08 | Minimum feedback volume for prompt refinement not defined | Blocks FR-24 actionability threshold | Research team | Pending advisor input |
+| OI-08 | Minimum feedback volume for prompt refinement not defined | Blocks the actionability threshold for subsequent prompt calibration | Research team | Pending advisor input |
 
 ---
 

@@ -1,0 +1,46 @@
+{
+  "program": "BSCS",
+  "source": "Program outcomes transcribed from the user-provided images on 2026-10-23. Wording is preserved; course mappings require separate verification.",
+  "objectives": [
+    {
+      "code": "CS01",
+      "description": "Apply knowledge of computing fundamentals and knowledge of a computing specialization, mathematics, science, and domain knowledge appropriate for the computing specialization to the abstraction and conceptualization of computing models from the defined problems and requirements."
+    },
+    {
+      "code": "CS02",
+      "description": "Identify, analyze, formulate research literature, solve complex computing problems and requirements reaching substantiated conclusions using fundamental principles of mathematics, computing sciences, and relevant domain disciplines."
+    },
+    {
+      "code": "CS03",
+      "description": "An ability to apply mathematical foundations, algorithmic principles and computer science theory in the modeling and design of computer-based systems in a way that demonstrates comprehension of the tradeoffs involved in design choices."
+    },
+    {
+      "code": "CS04",
+      "description": "Knowledge and understanding of information security issues in relation to the design, development and use of information system."
+    },
+    {
+      "code": "CS05",
+      "description": "Design and evaluate solutions for complex computing problems and design and evaluate systems, components, or processes that meet specified needs with appropriate consideration for public health and safety, cultural, societal, and environmental considerations."
+    },
+    {
+      "code": "CS06",
+      "description": "Create, select, adapt and apply appropriate techniques, resources and modern computing tools to complex computing activities, with an understanding of the limitations to accomplish a common goal."
+    },
+    {
+      "code": "CS07",
+      "description": "Function effectively as an individual and as a member or leader in diverse teams and in multidisciplinary settings."
+    },
+    {
+      "code": "CS08",
+      "description": "Communicate effectively with the computing community and with society at large about complex computing activities by being able to comprehend and write effective reports, design documentation, make effective presentations, and give and understand clear instructions."
+    },
+    {
+      "code": "CS09",
+      "description": "Recognize the legal, social, ethical and professional issues involved in the utilization of computer technology and be guided by the adoption of appropriate professional, ethical and legal practices."
+    },
+    {
+      "code": "CS10",
+      "description": "Recognize the need, and have the ability, to engage in independent learning for continual development as a computing professional."
+    }
+  ]
+}

@@ -20,6 +20,7 @@ from .models import (
 _CANONICAL_PROGRAM = "BSInfoTech"
 _PROGRAM_ALIASES = ("BSINFOTECH", "BSIT")
 
+
 def normalize_program(program: str | None) -> str | None:
     if program is None:
         return None
@@ -106,15 +107,12 @@ def list_roadmap_courses(
     )
     if semester is not None:
         query = query.filter(RoadmapYear.semester == semester)
-    return (
-        query.order_by(
-            RoadmapYear.year_number,
-            RoadmapYear.semester.is_(None),
-            RoadmapYear.semester,
-            RoadmapCourse.course_code,
-        )
-        .all()
-    )
+    return query.order_by(
+        RoadmapYear.year_number,
+        RoadmapYear.semester.is_(None),
+        RoadmapYear.semester,
+        RoadmapCourse.course_code,
+    ).all()
 
 
 def resolve_roadmap_course_context(
@@ -174,7 +172,6 @@ def resolve_roadmap_course_context(
     }
 
 
-
 def get_course(course_id: uuid.UUID, db: Any) -> Course | None:
     course = db.get(Course, course_id)
     if course is None:
@@ -187,11 +184,12 @@ def get_mapped_objectives(course_id: uuid.UUID, db: Any) -> list[dict[str, Any]]
     query already excludes them by construction (design spec section 3).
     """
     rows = (
-        db.query(CurriculumMapCell, CurriculumObjective)
+        db.query(CurriculumMapCell, CurriculumObjective, Course.mapping_version)
         .join(
             CurriculumObjective,
             CurriculumMapCell.objective_id == CurriculumObjective.objective_id,
         )
+        .join(Course, CurriculumMapCell.course_id == Course.course_id)
         .filter(CurriculumMapCell.course_id == course_id)
         .all()
     )
@@ -201,13 +199,23 @@ def get_mapped_objectives(course_id: uuid.UUID, db: Any) -> list[dict[str, Any]]
             "description": objective.description,
             "expected_level": cell.level,
             "program": objective.program,
+            "objective_id": str(objective.objective_id),
+            "version": objective.version,
+            "mapping_id": str(cell.id),
+            "course_mapping_version": mapping_version,
         }
-        for cell, objective in rows
+        for cell, objective, mapping_version in rows
     ]
 
 
 __all__ = [
-    "normalize_program", "get_course", "get_mapped_objectives", "list_courses",
-    "list_roadmaps", "get_roadmap", "get_roadmap_detail", "list_roadmap_courses",
+    "normalize_program",
+    "get_course",
+    "get_mapped_objectives",
+    "list_courses",
+    "list_roadmaps",
+    "get_roadmap",
+    "get_roadmap_detail",
+    "list_roadmap_courses",
     "resolve_roadmap_course_context",
 ]

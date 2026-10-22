@@ -25,9 +25,10 @@ import time
 from typing import Any
 from urllib import error as urllib_error
 
+from equiped_harness.runtime.model import CompletionResult
 from server.core.config import get_settings
 from server.core.exceptions import ConfigurationError
-from server.core.llm import LocalLLMClient
+from server.core.llm import LocalLLMClient, ResponseContract
 
 # Runtime policy: initial attempt + at most one transient retry.
 MAX_ATTEMPTS = 2
@@ -101,14 +102,17 @@ class AlignmentResponseError(AlignmentPermanentError):
 def preflight_client(client: Any) -> None:
     """Validate configuration before spending any attempt or token budget.
 
-    Duck-typed test doubles only need a callable ``generate``. Real
+    Injected clients need a callable ``generate_result`` or ``generate``. Real
     ``LocalLLMClient`` instances are additionally checked against the
     supported provider set, a non-empty model name, and a positive resolvable
     timeout -- configuration/model errors fail here, not after a wasted call.
     """
-    if not callable(getattr(client, "generate", None)):
+    if not any(
+        callable(getattr(client, method, None))
+        for method in ("generate_result", "generate")
+    ):
         raise AlignmentConfigError(
-            "alignment LLM client must expose a callable generate()",
+            "alignment LLM client must expose generate_result() or generate()",
             attempts=0,
         )
     if not isinstance(client, LocalLLMClient):
@@ -251,28 +255,47 @@ def _classify_exception(exc: BaseException, *, attempts: int) -> AlignmentCallEr
 
 def call_with_retry(
     client: Any,
-    prompt: str,
+    prompt: Any,
     *,
     temperature: float,
     max_new_tokens: int,
+    response_contract: ResponseContract | None = None,
     backoff_seconds: float = RETRY_BACKOFF_SECONDS,
-) -> tuple[str, int]:
+) -> tuple[CompletionResult, int]:
     """Call ``client.generate`` with the alignment retry policy.
 
-    Returns ``(response_text, attempts_made)`` on success. Raises a typed
+    Returns ``(completion, attempts_made)`` on success. Raises a typed
     ``AlignmentCallError`` (carrying the number of attempts made) on failure.
     Never swaps models and never falls back to another client.
     """
     preflight_client(client)
     worker = _as_single_attempt(client)
+    # Honor the deployed server's configured capability. Some compatible
+    # endpoints accept JSON objects but fail when initializing schema grammars.
+    # This is format selection before the call, not an extra retry or fallback.
+    if get_settings().llm_response_mode == "json_object":
+        response_contract = ResponseContract.json_object()
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            text = worker.generate(
-                prompt,
-                temperature=temperature,
-                max_new_tokens=max_new_tokens,
-            )
-            return text, attempt
+            if callable(getattr(worker, "generate_result", None)):
+                completion = worker.generate_result(
+                    prompt,
+                    temperature=temperature,
+                    max_new_tokens=max_new_tokens,
+                    response_contract=response_contract,
+                )
+            else:
+                # Preserve the small generate-only client contract used by
+                # injected callers; production retains completion metadata.
+                completion = CompletionResult(
+                    content=worker.generate(
+                        str(prompt),
+                        temperature=temperature,
+                        max_new_tokens=max_new_tokens,
+                    ),
+                    served_model=getattr(worker, "model", "unknown"),
+                )
+            return completion, attempt
         except Exception as exc:
             classified = _classify_exception(exc, attempts=attempt)
             if (

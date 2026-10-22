@@ -12,6 +12,7 @@ import {
   buildDisplayedSummary,
   getCoverageMetadata,
   getAlignmentDocumentEligibility,
+  getAlignmentCoursesForDocument,
   getAlignmentFailureState,
   getAlignmentRequestErrorState,
   type AlignmentSelectionAction,
@@ -76,8 +77,13 @@ export function useAlignmentCheckFeature() {
   const pickerDocuments = documents.filter(
     (doc) => getAlignmentDocumentEligibility(doc).eligible,
   );
+  const compatibleCourses = useMemo(
+    () => getAlignmentCoursesForDocument(courses ?? [], selectedDocument),
+    [courses, selectedDocument],
+  );
   const canRunCheck = Boolean(
-    documentId && courseId && selectedEligibility.eligible,
+    documentId && selectedEligibility.eligible
+      && compatibleCourses.some((course) => course.course_id === courseId),
   );
 
   const runErrorState = runCheck.isError
@@ -146,11 +152,11 @@ export function useAlignmentCheckFeature() {
 
   const courseOptions = useMemo<DropdownOption[]>(
     () =>
-      (courses ?? []).map((course) => ({
+      compatibleCourses.map((course) => ({
         value: course.course_id,
         label: `${course.course_code} — ${course.course_title}`,
       })),
-    [courses],
+    [compatibleCourses],
   );
 
   return {

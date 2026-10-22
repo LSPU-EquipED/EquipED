@@ -24,8 +24,8 @@ from .exceptions import (
 )
 from .models import CurriculumAlignmentCheck
 
-#: Canonical program for the curriculum map; ``BSIT`` is only a read alias.
-CANONICAL_PROGRAM = "BSInfoTech"
+#: Supported institutional programs; ``BSIT`` remains a BSInfoTech read alias.
+SUPPORTED_PROGRAMS = frozenset({"BSCS", "BSInfoTech"})
 
 SLM_SOURCE_TYPE = "slm"
 PROCESSED_STATUS = "PROCESSED"
@@ -53,7 +53,7 @@ def require_owned_document(
 
 
 def validate_document_for_alignment(document: Document) -> None:
-    """Enforce the SLM-only, PROCESSED, BSInfoTech document gate."""
+    """Require a processed SLM from a supported institutional program."""
     if document.source_type != SLM_SOURCE_TYPE:
         raise DocumentSourceTypeError(
             f"Document {document.document_id} has source_type "
@@ -66,21 +66,21 @@ def validate_document_for_alignment(document: Document) -> None:
             f"(status {document.processing_status!r}); wait for ingestion to "
             "complete before running an alignment check."
         )
-    if normalize_program(document.program) != CANONICAL_PROGRAM:
+    if normalize_program(document.program) not in SUPPORTED_PROGRAMS:
         raise DocumentProgramError(
             f"Document {document.document_id} belongs to unsupported program "
-            f"{document.program!r}; only {CANONICAL_PROGRAM} (legacy alias "
-            "'BSIT') is supported for curriculum alignment."
+            f"{document.program!r}; BSCS and BSInfoTech (legacy alias 'BSIT') "
+            "are supported for curriculum alignment."
         )
 
 
 def validate_course_program(course: Course, document: Document) -> None:
     """Enforce that the course program is supported and matches the document."""
-    if normalize_program(course.program) != CANONICAL_PROGRAM:
+    if normalize_program(course.program) not in SUPPORTED_PROGRAMS:
         raise CourseProgramMismatchError(
             f"Course {course.course_code} belongs to unsupported program "
-            f"{course.program!r}; only {CANONICAL_PROGRAM} (legacy alias "
-            "'BSIT') is supported for curriculum alignment."
+            f"{course.program!r}; BSCS and BSInfoTech (legacy alias 'BSIT') "
+            "are supported for curriculum alignment."
         )
     if normalize_program(course.program) != normalize_program(document.program):
         raise CourseProgramMismatchError(
@@ -89,14 +89,20 @@ def validate_course_program(course: Course, document: Document) -> None:
         )
 
 
-def validate_objective_programs(mapped: list[dict[str, Any]]) -> None:
-    """Enforce that every mapped objective belongs to the supported program."""
+def validate_objective_programs(
+    mapped: list[dict[str, Any]], course_program: str
+) -> None:
+    """Require every mapped objective to belong to the selected course program."""
+    expected_program = normalize_program(course_program)
     for objective in mapped:
-        if normalize_program(objective["program"]) != CANONICAL_PROGRAM:
+        objective_program = normalize_program(objective["program"])
+        if (
+            objective_program not in SUPPORTED_PROGRAMS
+            or objective_program != expected_program
+        ):
             raise CurriculumMapProgramError(
-                f"Objective {objective['code']} belongs to unsupported program "
-                f"{objective['program']!r}; only {CANONICAL_PROGRAM} (legacy "
-                "alias 'BSIT') objectives can be alignment-checked."
+                f"Objective {objective['code']} program {objective['program']!r} "
+                f"must match the supported course program {course_program!r}."
             )
 
 
@@ -151,7 +157,7 @@ def enforce_recheck_cooldown(
 
 
 __all__ = [
-    "CANONICAL_PROGRAM",
+    "SUPPORTED_PROGRAMS",
     "SLM_SOURCE_TYPE",
     "PROCESSED_STATUS",
     "require_owned_document",

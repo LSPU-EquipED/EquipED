@@ -161,7 +161,8 @@ In development, `apps/faculty` and `apps/admin` function under a single unified 
      - Faculty protected: `/dashboard`, `/documents`, `/documents/$documentId/evaluation` (redirects to assigned specialist scoreboard), `/storage` (redirects to `/documents`), `/specialists/$agentId`, `/specialists/$agentId/$documentId`, `/evaluations`, `/evaluations/$id`, `/syllabus-alignment`, `/syllabus-alignment/$documentId`, `/syllabus-alignment/$documentId/report`, `/curriculum-alignment` (canonical), `/alignment` (redirects to `/curriculum-alignment`)
    - **Admin Routes** (`apps/admin/src/app/router.tsx`):
      - Authenticated root: `/` (redirects admin to `/admin`, non-admin to `/dashboard`, unauthenticated to `/login`)
-     - Admin protected: `/admin`, `/admin/users`, `/admin/ingest`, `/admin/references`, `/admin/prompts`, `/admin/prompts/$agentId`, `/admin/preferences`, `/admin/rubrics`, `/admin/model-validation`, `/admin/synthesis/$documentId`, `/matrix`, `/matrix/$documentId`, `/evaluation-map`
+     - Admin protected: `/admin`, `/admin/users`, `/admin/ingest`, `/admin/references`, `/admin/curriculum-objectives`, `/admin/preferences`, `/admin/rubrics`, `/admin/model-validation`, `/admin/training-data`, `/admin/training-data/$agentId`, `/admin/synthesis/$documentId`, `/matrix`, `/matrix/$documentId`, `/evaluation-map`
+     - The Agent Prompts frontend feature and routes are removed. Backend prompt configuration and version storage remain independent of the portal.
 
 ### Current Official Local Topology
 
@@ -178,13 +179,16 @@ The backend (`apps/server/`) is structured strictly as an in-process modular mon
 - `apps/server/core/`: Contains **infrastructure only** (database connection pools, settings, base exceptions, logging setup, LLM provider clients, and Chroma adapters). Core contains **zero business logic**.
 - `apps/server/modules/`: Domain packages containing their own routers, service facades, domain models, Pydantic schemas, and local errors:
   - `documents`: SLM and reference PDF ingestion, OCR processing, text chunking, and journaled deletion.
+    Background reference ingestion resolves stored file locations to validated PDFs under the local upload root before extraction, downloading from the configured storage backend when no local copy exists.
   - `embeddings`: Embedding pipeline and similarity retrieval scoped **exclusively** to syllabi, curricula, and institutional rubrics.
   - `evaluations`: DB-backed FIFO queue, CAS claim token admission, worker drain loop, Layer 3 agent dispatch, and crash recovery.
   - Evaluation integration is flat under `evaluations`: `runner.py`, `dispatch.py` and `context.py` prepare authorized local inputs and maintain worker leases; `harness_adapter.py` translates explicit model/tool configuration. Specialist implementations and public-reference tools live outside the server. Database-backed envelope lookup lives in `rubrics/envelopes.py`.
   - `synthesis`: Deterministically merges persisted specialist outputs into the progressive monitoring matrix and computes the composite after all four domains complete.
   - `itso_assessments`: Read-only access to historical evidence-only ITSO assessments, including saved policy/attachment identities, verification records and integrity checks. It owns no current specialist execution or approval workflow.
   - `curriculum`: Program curriculum structure and course-to-objective mappings.
+    Owns admin-authorized objective and mapping edits, optimistic edit versions, relational change history, and seed ownership markers. The Admin `curriculum-objectives` feature consumes these operations independently of the PDF Reference Library. Alignment snapshots the loaded reference versions before model execution.
   - `alignment.curriculum`: Standalone checks of SLM coverage and depth against mapped course objectives.
+    Supports BSCS and BSInfoTech (legacy BSIT read alias), with processed owned SLMs, same-program courses and objectives, and a nonempty course map required before model execution.
   - `alignment.syllabus`: Standalone advisory checks of SLM topics against syllabus Course Contents.
   - `rubrics`: Rubric domain definitions, criteria trees, and versioned rubric configurations.
   - `feedback`: Preference logging (accept/reject/edit) on agent outputs for administrative review.

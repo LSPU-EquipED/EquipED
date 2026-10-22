@@ -18,8 +18,8 @@ describe('admin appRouter configuration and route splitting', () => {
     expect(flatRoutes['/shell/admin/users']).toBeDefined();
     expect(flatRoutes['/shell/admin/ingest']).toBeDefined();
     expect(flatRoutes['/shell/admin/references']).toBeDefined();
-    expect(flatRoutes['/shell/admin/prompts']).toBeDefined();
-    expect(flatRoutes['/shell/admin/prompts/$agentId']).toBeDefined();
+    expect((flatRoutes as Record<string, unknown>)['/shell/admin/prompts']).toBeUndefined();
+    expect((flatRoutes as Record<string, unknown>)['/shell/admin/prompts/$agentId']).toBeUndefined();
     expect(flatRoutes['/shell/admin/training-data']).toBeDefined();
     expect(flatRoutes['/shell/admin/training-data/$agentId']).toBeDefined();
     expect(flatRoutes['/shell/admin/preferences']).toBeDefined();

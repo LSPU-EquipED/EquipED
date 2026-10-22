@@ -30,6 +30,7 @@ export interface ArchivedExperiment {
   scope: string;
   reference_kind: string;
   pair_count: number | null;
+  unique_slm_count?: number | null;
   dataset_note: string;
   summary: string;
   limitations: string[];

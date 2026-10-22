@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FineTuningResults } from '../FineTuningResults';
 import { modelValidationApi } from '../../api/modelValidation.api';
@@ -22,27 +22,40 @@ describe('FineTuningResults', () => {
         <FineTuningResults />
       </QueryClientProvider>,
     );
-    fireEvent.click(await screen.findByRole('button', { name: 'GAD' }));
+    await screen.findByRole('combobox', { name: 'Experiment' });
     const select = screen.getByRole('combobox', { name: 'Experiment' });
     fireEvent.change(select, { target: { value: 'gad-v5' } });
     expect(screen.getByRole('heading', { name: 'Exact quotation grounding' })).toBeDefined();
     expect(screen.getByText('82.5%')).toBeDefined();
     expect(screen.getByText('97.5%')).toBeDefined();
     expect(screen.getByText(/33\/40 → 39\/40/)).toBeDefined();
-    expect(
-      screen.getByRole('heading', { name: 'Result summary' }).parentElement?.textContent,
-    ).toContain('15 percentage points');
-    expect(screen.getByRole('option', { name: /Fine-tuned GAD model v5/ })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'Result summary' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Reasoning quality' })).toBeNull();
+    expect(screen.queryByText('Evidence relevance')).toBeNull();
+    expect(screen.getByRole('option', { name: 'Quotation Grounding' })).toBeDefined();
+    const accuracy = screen.getByRole('figure', { name: 'Mean absolute error comparison' });
+    expect(within(accuracy).getByText('0.625')).toBeDefined();
+    expect(within(accuracy).getByText('0.650')).toBeDefined();
+    expect(within(accuracy).getByText('3')).toBeDefined();
+    expect(screen.getByText('Experiment details').closest('details')?.open).toBe(false);
+    fireEvent.click(screen.getByText('Experiment details'));
+    expect(screen.getByText('Experiment details').closest('details')?.open).toBe(true);
+    const comparison = screen.getByRole('figure', { name: 'MAE by SLM' });
+    expect(within(comparison).getAllByRole('group')).toHaveLength(8);
+    expect(within(comparison).getByText('Base MAE')).toBeDefined();
+    expect(within(comparison).getByText('Fine-tuned MAE')).toBeDefined();
     expect(screen.getAllByRole('row')).toHaveLength(9);
     fireEvent.click(screen.getByRole('button', { name: 'Evidence & reasoning' }));
     expect(
       screen.getByRole('region', {
-        name: 'Fine-tuned GAD model v5 archived explanation',
+        name: 'Fine-tuned model archived explanation',
       }),
     ).toBeDefined();
     expect(screen.getAllByText(/Quote grounding:/)).toHaveLength(2);
+    fireEvent.click(screen.getByText('Experiment details'));
+    expect(screen.getByText('Experiment details').closest('details')?.open).toBe(false);
   });
-  it('groups existing experiments by agent and distinguishes unassessed quality from results', async () => {
+  it('combines every experiment in one selector and hides unmeasured metrics', async () => {
     vi.spyOn(modelValidationApi, 'getFineTuningArchive').mockResolvedValue(
       archive as FineTuningArchive,
     );
@@ -51,29 +64,37 @@ describe('FineTuningResults', () => {
         <FineTuningResults />
       </QueryClientProvider>,
     );
-    await screen.findByRole('button', { name: 'SME' });
-    expect(screen.getAllByRole('option')).toHaveLength(3);
-    for (const name of ['Scoring accuracy', 'Evidence quality', 'Reasoning quality']) {
-      expect(screen.getByRole('heading', { name })).toBeDefined();
-    }
-    expect(screen.getByText('Quotation grounding not audited.')).toBeDefined();
-    expect(screen.getAllByText('Not yet formally assessed')).toHaveLength(2);
-    fireEvent.change(screen.getByRole('combobox', { name: 'Experiment' }), {
-      target: { value: 'v13' },
-    });
-    expect(screen.getByText(/Only OP-05 contributes/)).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'Coordinator' }));
-    expect(
-      screen.getByRole('heading', { name: 'No Coordinator experiments archived yet' }),
-    ).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Export results' })).toBeNull();
-    expect(screen.queryByRole('table')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'ITSO' }));
-    expect(screen.getByRole('heading', { name: 'No ITSO experiments archived yet' })).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'SME' }));
-    expect((screen.getByRole('combobox', { name: 'Experiment' }) as HTMLSelectElement).value).toBe(
-      'v13',
+    await screen.findByRole('combobox', { name: 'Experiment' });
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(
+      archive.experiments.map((experiment) => experiment.title),
     );
+    for (const name of ['SME', 'GAD', 'Coordinator', 'ITSO']) {
+      expect(screen.queryByRole('button', { name })).toBeNull();
+    }
+    expect(screen.getByRole('heading', { name: 'Scoring accuracy' })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'Evidence quality' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Reasoning quality' })).toBeNull();
+    expect(screen.queryByText('Not yet formally assessed')).toBeNull();
+    expect(screen.queryByText('Quotation grounding not audited.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Training' })).toBeNull();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Experiment' }), {
+      target: { value: 'v9' },
+    });
+    fireEvent.click(screen.getByText('Experiment details'));
+    expect(screen.getByText(/All archived criteria included/)).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Training' }));
+    expect(screen.getByRole('table', { name: 'Archived training metrics' })).toBeDefined();
+    expect(screen.getByRole('figure', { name: 'DPO loss comparison' })).toBeDefined();
+    expect(
+      screen.getByRole('figure', { name: 'Preference reward margin comparison' }),
+    ).toBeDefined();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Experiment' }), {
+      target: { value: 'v7' },
+    });
+    expect(screen.queryByRole('button', { name: 'Training' })).toBeNull();
+    expect(screen.getByText('Experiment details').closest('details')?.open).toBe(false);
+    fireEvent.click(screen.getByText('Experiment details'));
+    expect(screen.getByRole('table', { name: 'Archived results by SLM' })).toBeDefined();
   });
   it('keeps the archive readable when the live validation database is empty', async () => {
     vi.spyOn(modelValidationApi, 'getFineTuningArchive').mockResolvedValue({
@@ -137,7 +158,8 @@ describe('FineTuningResults', () => {
     expect(
       await screen.findByRole('combobox', { name: 'Experiment' }, { timeout: 5000 }),
     ).toBeDefined();
-    expect(screen.getByRole('heading', { name: 'Result summary' })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'Result summary' })).toBeNull();
+    fireEvent.click(screen.getByText('Experiment details'));
     expect(screen.getByRole('columnheader', { name: 'Fine-tuned MAE' })).toBeDefined();
     expect(screen.queryByText('One run per condition.')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Method' }));
@@ -147,5 +169,72 @@ describe('FineTuningResults', () => {
     expect(screen.getByText('Reasoning not stored.')).toBeDefined();
     expect(screen.getByText('Stored legacy explanation')).toBeDefined();
     expect(screen.getByText('Repaired model response')).toBeDefined();
+  });
+
+  it('omits scoring and grounding when no comparable model responses exist', async () => {
+    const experiment = structuredClone(archive.experiments.find((e) => e.id === 'gad-v5')!);
+    for (const run of experiment.runs) {
+      for (const criterion of run.criteria) {
+        criterion.base.status = 'fallback';
+        criterion.adapter.status = 'fallback';
+      }
+    }
+    vi.spyOn(modelValidationApi, 'getFineTuningArchive').mockResolvedValue({
+      ...archive,
+      experiments: [experiment],
+    } as FineTuningArchive);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FineTuningResults />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('combobox', { name: 'Experiment' });
+    expect(screen.queryByRole('region', { name: 'Evaluation overview' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Comparisons' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Reasoning quality' })).toBeNull();
+  });
+
+  it('exports the selected experiment with its original identity and provenance', async () => {
+    vi.spyOn(modelValidationApi, 'getFineTuningArchive').mockResolvedValue(
+      archive as FineTuningArchive,
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FineTuningResults />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('combobox', { name: 'Experiment' });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Experiment' }), {
+      target: { value: 'gad-v5' },
+    });
+    const create = vi.fn((_blob: Blob) => 'blob:archive');
+    const revoke = vi.fn();
+    const OriginalURL = URL;
+    vi.stubGlobal(
+      'URL',
+      class extends OriginalURL {
+        static createObjectURL = create;
+        static revokeObjectURL = revoke;
+      },
+    );
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Export results' }));
+      const blob = create.mock.calls[0][0];
+      const content = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsText(blob);
+      });
+      expect(JSON.parse(content)).toEqual({
+        schema_version: archive.schema_version,
+        archived_on: archive.archived_on,
+        experiment: archive.experiments.find((experiment) => experiment.id === 'gad-v5'),
+      });
+      await waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:archive'), { timeout: 2000 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

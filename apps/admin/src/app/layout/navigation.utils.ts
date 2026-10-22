@@ -2,7 +2,6 @@ import {
   BookOpen,
   Books,
   ClipboardText,
-  Gear,
   GitFork,
   GraduationCap,
   Scan,
@@ -11,7 +10,7 @@ import {
   UploadSimple,
   Users,
 } from '@phosphor-icons/react';
-import type { BreadcrumbItem, NavGroup, NavItem } from '@equiped/ui';
+import type { BreadcrumbItem, NavGroup } from '@equiped/ui';
 import { isTargetAgent, TARGET_AGENT_META } from '@equiped/types';
 
 export type { NavItem, BreadcrumbItem, NavGroup } from '@equiped/ui';
@@ -45,6 +44,7 @@ export const adminNavGroups: readonly NavGroup[] = [
     items: [
       { to: '/admin/ingest', label: 'Reference Ingestion', icon: UploadSimple, exact: true },
       { to: '/admin/references', label: 'Reference Library', icon: Books, exact: true },
+      { to: '/admin/curriculum-objectives', label: 'Curriculum Objectives', icon: GraduationCap, exact: true },
       { to: '/admin/rubrics', label: 'Rubric Editor', icon: ClipboardText, exact: true },
     ],
   },
@@ -54,7 +54,6 @@ export const adminNavGroups: readonly NavGroup[] = [
     items: [
       { to: '/evaluation-map', label: 'Knowledge Map', icon: GitFork, exact: true },
       { to: '/admin/model-validation', label: 'Model Validation', icon: Scan, exact: true },
-      { to: '/admin/prompts', label: 'Agent Prompts', icon: Gear, exact: false },
       { to: '/admin/training-data', label: 'Model Training', icon: GraduationCap, exact: false },
       { to: '/admin/preferences', label: 'Preference Logs', icon: BookOpen, exact: true },
     ],
@@ -82,6 +81,8 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
     return [{ label: 'Reference Ingestion' }];
   }
 
+  if (cleanPath === '/admin/curriculum-objectives') return [{ label: 'Curriculum Objectives' }];
+
   if (cleanPath === '/admin/references') {
     return [{ label: 'Reference Library' }];
   }
@@ -96,19 +97,6 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
 
   if (cleanPath === '/admin/preferences') {
     return [{ label: 'Preference Logs' }];
-  }
-
-  if (cleanPath === '/admin/prompts') {
-    return [{ label: 'Agent Prompts' }];
-  }
-
-  if (cleanPath.startsWith('/admin/prompts/')) {
-    const agentId = cleanPath.replace('/admin/prompts/', '');
-    const agentLabel = getAgentBreadcrumbLabel(agentId);
-    return [
-      { label: 'Agent Prompts', to: '/admin/prompts' },
-      { label: agentLabel },
-    ];
   }
 
   if (cleanPath === '/admin/training-data') {
@@ -156,10 +144,10 @@ export function getRouteTitle(pathname: string): string {
   if (cleanPath === '/matrix') return 'Monitoring Matrix';
   if (cleanPath === '/evaluation-map') return 'Knowledge Map';
   if (cleanPath === '/admin/ingest') return 'Reference Ingestion';
+  if (cleanPath === '/admin/curriculum-objectives') return 'Curriculum Objectives';
   if (cleanPath === '/admin/references') return 'Reference Library';
   if (cleanPath === '/admin/rubrics') return 'Rubric Editor';
   if (cleanPath === '/admin/model-validation') return 'Model Validation';
-  if (cleanPath.startsWith('/admin/prompts')) return 'Agent Prompts';
   if (cleanPath.startsWith('/admin/training-data')) return 'Model Training';
   if (cleanPath === '/admin/preferences') return 'Preference Logs';
   return 'EquipED Admin';

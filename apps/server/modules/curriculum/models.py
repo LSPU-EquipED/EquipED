@@ -12,17 +12,22 @@ from datetime import datetime
 
 from server.core.database import Base
 from sqlalchemy import (
+    JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     String,
     Text,
     UniqueConstraint,
     Uuid,
+    case,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.expression import Grouping
 
 
 class Course(Base):
@@ -35,6 +40,10 @@ class Course(Base):
     course_code: Mapped[str] = mapped_column(String(50), nullable=False)
     course_title: Mapped[str] = mapped_column(String(300), nullable=False)
     program: Mapped[str] = mapped_column(String(50), nullable=False)
+    mapping_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    mappings_managed: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
 
 
 class CurriculumObjective(Base):
@@ -51,6 +60,46 @@ class CurriculumObjective(Base):
     code: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     program: Mapped[str] = mapped_column(String(50), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    managed_by_admin: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
+    seed_code: Mapped[str | None] = mapped_column(String(50), unique=True)
+
+
+Index(
+    "uq_curriculum_objective_normalized",
+    func.upper(func.trim(CurriculumObjective.code)),
+    Grouping(
+        case(
+            (
+                func.upper(func.trim(CurriculumObjective.program)).in_(
+                    ["BSIT", "BSINFOTECH"]
+                ),
+                "BSInfoTech",
+            ),
+            else_=func.upper(func.trim(CurriculumObjective.program)),
+        )
+    ),
+    unique=True,
+)
+
+
+class CurriculumChange(Base):
+    """Append-only domain history; management exposes no update/delete operation."""
+
+    __tablename__ = "curriculum_changes"
+    change_id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
+    )
+    changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    entity_type: Mapped[str] = mapped_column(String(30))
+    entity_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True))
+    before: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    after: Mapped[dict] = mapped_column(JSON)
 
 
 class CurriculumMapCell(Base):
@@ -188,7 +237,6 @@ class RoadmapCourse(Base):
     relevant_certification: Mapped[str | None] = mapped_column(
         String(300), nullable=True
     )
-
 
 
 __all__ = [

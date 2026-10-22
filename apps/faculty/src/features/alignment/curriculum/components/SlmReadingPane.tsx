@@ -105,8 +105,8 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
     };
 
     return (
-      <div className="flex h-full flex-col bg-canvas">
-        <div className="flex h-11 items-center justify-between border-b border-border bg-surface px-4">
+      <div className="flex h-full min-h-0 flex-col bg-canvas">
+        <div className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
           <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">
             SLM Document Reader
           </span>
@@ -138,7 +138,7 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
           <article
             className={`min-h-[32rem] rounded-sm border border-border bg-surface p-6 sm:p-8 transition-colors ${
               flashed ? 'bg-warning-soft/30 ring-1 ring-warning/50' : ''

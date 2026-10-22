@@ -2,6 +2,9 @@
 pipeline's IT program data. Mirrors server/scripts/seed_rubrics.py's shape.
 
 Convergence rules (safe for repeat runs):
+- Admin-managed objectives and course mapping sets are preserved. Seed-code
+  anchors retain objective identity across admin code/program edits, including
+  deliberate mapping removals. Convergence applies only to untouched seed data.
 - Courses, objectives, and map cells defined by the seed JSON are upserted:
   existing rows are corrected in place (title/description/program/level), not
   just left untouched.
@@ -48,6 +51,12 @@ _PROGRAM_ALIASES = (CANONICAL_PROGRAM, LEGACY_PROGRAM)
 def _objective_for_code(db: Any, code: str) -> CurriculumObjective | None:
     """Resolve an objective by code, treating BSIT as an alias of
     BSInfoTech. Fails actionably when both alias rows exist."""
+    anchored = (
+        db.query(CurriculumObjective)
+        .filter_by(seed_code=code)
+        .with_for_update()
+        .one_or_none()
+    )
     matches = (
         db.query(CurriculumObjective)
         .filter(
@@ -63,7 +72,7 @@ def _objective_for_code(db: Any, code: str) -> CurriculumObjective | None:
             "exist. Resolve the duplicate institutional objectives before "
             "re-running the seed."
         )
-    return matches[0] if matches else None
+    return anchored or (matches[0] if matches else None)
 
 
 def seed_curriculum_map(db: Any, payload: dict[str, Any]) -> None:
@@ -90,25 +99,31 @@ def seed_curriculum_map(db: Any, payload: dict[str, Any]) -> None:
         if objective is None:
             objective = CurriculumObjective(
                 code=code,
+                seed_code=code,
                 description=obj_data["description"],
                 program=CANONICAL_PROGRAM,
             )
             db.add(objective)
             db.flush()
-        elif (
+        elif not objective.managed_by_admin and (
             objective.program != CANONICAL_PROGRAM
             or objective.description != obj_data["description"]
         ):
             objective.program = CANONICAL_PROGRAM
             objective.description = obj_data["description"]
+            objective.version += 1
+        if not objective.managed_by_admin and not objective.seed_code:
+            objective.seed_code = code
         objectives_by_code[code] = objective
 
     for course_data in payload["courses"]:
         course = (
             db.query(Course)
             .filter_by(course_code=course_data["course_code"])
+            .with_for_update()
             .one_or_none()
         )
+        new_course = course is None
         if course is None:
             course = Course(
                 course_code=course_data["course_code"],
@@ -142,8 +157,18 @@ def seed_curriculum_map(db: Any, payload: dict[str, Any]) -> None:
             for code, level in course_data["objective_levels"].items()
             if level
         }
+        if course.mappings_managed:
+            continue
+        previous_levels = {
+            cell.objective_id: cell.level
+            for cell in db.query(CurriculumMapCell)
+            .filter_by(course_id=course.course_id)
+            .all()
+        }
         for code, level in canonical_levels.items():
             objective = objectives_by_code[code]
+            if objective.program not in _PROGRAM_ALIASES:
+                continue
             existing_cell = (
                 db.query(CurriculumMapCell)
                 .filter_by(
@@ -171,13 +196,25 @@ def seed_curriculum_map(db: Any, payload: dict[str, Any]) -> None:
             db.query(CurriculumMapCell).filter_by(course_id=course.course_id).all()
         ):
             objective = db.get(CurriculumObjective, cell.objective_id)
+            seed_identity = (
+                (objective.seed_code or objective.code) if objective else None
+            )
             if (
                 objective is not None
-                and objective.code in known_objective_codes
+                and seed_identity in known_objective_codes
                 and objective.program in _PROGRAM_ALIASES
-                and objective.code not in canonical_levels
+                and seed_identity not in canonical_levels
             ):
                 db.delete(cell)
+        db.flush()
+        current_levels = {
+            cell.objective_id: cell.level
+            for cell in db.query(CurriculumMapCell)
+            .filter_by(course_id=course.course_id)
+            .all()
+        }
+        if not new_course and previous_levels != current_levels:
+            course.mapping_version += 1
 
     db.commit()
 

@@ -55,6 +55,7 @@ class ArchivedExperiment(BaseModel):
     scope: str
     reference_kind: str
     pair_count: int | None
+    unique_slm_count: int | None = Field(default=None, ge=0)
     dataset_note: str
     summary: str
     limitations: list[str]

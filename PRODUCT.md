@@ -6,7 +6,7 @@ product
 
 ## Users
 * **LSPU SCC Faculty Members**: Instructors submitting Self-Paced Learning Materials (SLMs) for initial automated evaluation, checking flagged text segments, and reviewing criteria scores to guide syllabus/module alignment revisions.
-* **CID (Curriculum Instruction Development) Staff & Admin**: Institutional Quality Assurance reviewers who manage system-wide prompts, monitor evaluations across academic programs (BSIT, BSCS, BSIS), validate agent scorecards, and provide authoritative human decisions.
+* **CID (Curriculum Instruction Development) Staff & Admin**: Institutional Quality Assurance reviewers who manage institutional references and rubrics, monitor evaluations across academic programs (BSIT, BSCS, BSIS), validate agent scorecards, and provide authoritative human decisions.
 
 ## Product Purpose
 To automate the initial quality-assurance review layer of Self-Paced Learning Modules (SLMs) against institutional rubrics across four independent domains (SME content accuracy, Coordinator objective gauging (A-05) and supplemental curriculum alignment (C-01), GAD gender sensitivity, and ITSO IP compliance). The system serves as an advisory co-pilot that aggregates evaluation scores and compliance flags under the authoritative review of human CID experts.
@@ -18,6 +18,8 @@ To automate the initial quality-assurance review layer of Self-Paced Learning Mo
 
 ## Account Administration
 The user-management directory excludes the signed-in administrator from its records and counts. Administrators cannot deactivate or permanently delete their own account through the administrative delete endpoints. Permanent deletion in the interface requires typing the selected account's email before confirmation.
+
+The admin portal has no Agent Prompts section or prompt-editing page. Stored prompt configurations and version history remain backend-managed.
 
 ## ITSO tool-assisted rubric evaluation
 
@@ -43,9 +45,13 @@ An active, approved administrator can import a reviewed frozen DPO package throu
 
 ## Model Validation
 
-Fine-Tuning Results preserves curated research snapshots for SME fine-tuned models v7, v9, and v13 and GAD v5 independently of live validation rows and model availability. Administrators can inspect synthetic-reference scores, captured evidence and reasoning, training measurements, limitations, and run provenance, and export each experiment as JSON. GAD v5 retains all eight held-out synthetic comparisons and highlights exact quotation grounding (33/40 to 39/40), separately from scoring accuracy (MAE 0.625 to 0.650; exact matches 25/40 for both). Grounding checks verbatim occurrence in the cited source chunk, not semantic relevance or correctness. Historical experiments without grounding audits do not receive reconstructed metrics. Archived excerpts are served through an authenticated administrator endpoint, never public frontend assets. The archive distinguishes training-objective progress from generated scoring accuracy and does not establish expert agreement or generalization.
+Fine-Tuning Results preserves curated research snapshots for SME fine-tuned models v7 and v9 and GAD v5 independently of live validation rows and model availability. Administrators can inspect synthetic-reference scores, captured evidence and reasoning, training measurements, limitations, and run provenance, and export each experiment as JSON. GAD v5 retains all eight held-out synthetic comparisons and highlights exact quotation grounding (33/40 to 39/40), separately from scoring accuracy (MAE 0.625 to 0.650; exact matches 25/40 for both). Grounding checks verbatim occurrence in the cited source chunk, not semantic relevance or correctness. Historical experiments without grounding audits do not receive reconstructed metrics. Archived excerpts are served through an authenticated administrator endpoint, never public frontend assets. The archive distinguishes training-objective progress from generated scoring accuracy and does not establish expert agreement or generalization.
 
-The Fine-Tuning Results workspace groups archived experiments by SME, GAD, Coordinator, and ITSO. Every available experiment presents scoring accuracy, evidence quality, and reasoning quality together. Existing score metrics and quotation audits are reused; evidence relevance and reasoning quality remain explicitly unassessed until a structured review is archived. Agents without archived experiments show an empty state rather than inferred results.
+The Fine-Tuning Results workspace combines all archived experiments in one selector, labelled by experiment title. It omits specialist tabs and the result-summary panel, and uses the general display name “Fine-tuned model.” Only measured metrics are shown: scoring accuracy for comparable scores and quotation grounding when audited; unassessed evidence relevance and reasoning quality are omitted. Training appears only when measurements were captured. Captured evidence and explanations remain inspectable separately from quality metrics. Each experiment retains its own scope and measurements, and JSON exports preserve original specialist/model identities, versions, and provenance.
+
+Paired bars compare Base and Fine-tuned model MAE and audited grounding percentages, with exact-match counts alongside accuracy. The collapsed experiment details include grouped per-SLM Base and Fine-tuned MAE bars and, when available, first/last training measurements. Charts reuse the archived metric calculations and do not pool experiments, infer missing audits, or reconstruct intermediate training steps.
+
+Fine-Tuning Results methodology distinguishes comparison counts from explicitly curated unique-SLM counts, including repeated inputs. Missing source or dataset-pair counts remain Not recorded. Shortened limitations retain the recorded study boundaries; original notes remain in the JSON export. Dates, validation and evaluation identifiers, and available prompt hashes are grouped under Provenance.
 
 ## SME absence findings
 
@@ -72,3 +78,13 @@ SME prepares oversized source inputs using local section and task-pattern hints,
 Module Library stores owned SLMs and exposes document details and original PDFs. Evaluation status, launch, progress, result inspection, and retry belong to the permitted specialist workspace, where status is specific to that specialist. Module Library does not summarize the latest specialist job as overall module completion.
 
 Faculty evaluation results use a consistent presentation across specialist workspaces and Evaluation History. An opened result remains tied to one evaluation run, including its evidence, rubric snapshot, reviewer corrections, and PDF export. Re-evaluation creates a new run rather than replacing the earlier record. Specialist completion and score review do not constitute institutional approval.
+
+## Curriculum alignment response reliability
+
+Standalone curriculum alignment places JSON output rules in a system message and module content and objectives in a separate untrusted user data block. It requests a structured response covering every mapped objective using the configured model response format: JSON-object mode by default, or an explicit objective schema when JSON-schema mode is enabled for a compatible server. A complete Markdown JSON wrapper and a top-level array of objective results are normalized before the same strict validation; invalid fields, missing or duplicate objectives, and truncated output still fail the whole check. Output space scales with the number of objectives within a fixed upper bound. A model output-limit failure receives a specific explanation. Provenance retains safe completion metadata, the original top-level JSON type, wrapper normalization flags, and bounded validation errors without raw responses, module text, or untrusted field names and objective codes. The existing single-call workflow and one transient retry remain unchanged, with no automatic model fallback or response-repair calls.
+
+## Administrator curriculum objectives
+
+Administrators maintain curriculum objective codes, descriptions, and programs in Curriculum Objectives under Knowledge Base. Program is a required dropdown containing only BSCS and BSInfoTech. Objective IDs remain immutable. An objective becomes usable for a course after the administrator assigns an I/E/D mapping; adding a catalog entry alone does not include it in alignment. Standalone alignment supports BSCS and BSInfoTech, including the legacy BSIT read alias. The processed SLM, selected course, and every mapped objective must belong to the same program; courses without mappings cannot run a check.
+
+Edits use version checks and retain actor-attributed change history. Incompatible program moves and duplicate normalized codes within a program are rejected. Admin-edited objectives and course mapping sets are protected from normal seed convergence, including renamed objectives and deliberately removed mappings. Saved results retain their original objective text and levels; new successful and failed checks retain the reference identities and versions used for that run.
