@@ -32,7 +32,7 @@ approval.
 ## Data and deployment model
 
 Development currently uses local frontend/backend processes, configured document
-storage and local Chroma state, and a shared Neon PostgreSQL database for team work.
+storage, local or explicitly configured Chroma Cloud, and a shared Neon PostgreSQL database for team work.
 Neon is temporary development infrastructure only.
 
 Use the project's least-privilege runtime connection with required TLS. The
@@ -80,8 +80,27 @@ PDF support is required. Do not commit credentials or print connection URLs.
 Document binaries and reference vectors are separate from PostgreSQL. Configure
 the existing approved R2 bucket privately to read shared documents; a new local
 `uploads/` directory does not contain the migrated files. Chroma uses local
-persistence unless `CHROMA_HOST` is configured. Preserve existing vector data;
+persistence by default. A self-hosted `CHROMA_HOST`/`CHROMA_PORT` selects HTTP mode;
+`CHROMA_API_KEY`, `CHROMA_TENANT`, and `CHROMA_DATABASE` select managed Chroma Cloud
+(optional host `api.trychroma.com`). Cloud storage of institutional vectors and
+their text requires explicit deployment authorization. Preserve existing vector data;
 do not treat an empty Chroma store as a completed database migration.
+
+For an authorized cloud cutover, back up local Chroma and pause vector writes.
+With cloud credentials configured, run from `apps/`:
+
+```sh
+uv run --project server python -m server.scripts.migrate_chroma_cloud /absolute/path/to/chroma-backup
+uv run --project server python -m server.scripts.migrate_chroma_cloud /absolute/path/to/chroma-backup --apply
+uv run --project server python -m server.scripts.migrate_chroma_cloud /absolute/path/to/chroma-backup --verify-only
+```
+
+The default command inventories without writes. Copying preserves stored vectors,
+text, metadata, IDs and distance space without re-embedding. Identical partial copies
+can resume; conflicting destination data is refused. Optional `--report` writes a
+count/hash manifest without source text or credentials. The tool holds one
+collection in memory and uses bounded network batches. Verify application retrieval
+and reload the backend for cutover; retain the local source and backup for rollback.
 
 ### Database migrations
 

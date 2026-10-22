@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -114,6 +114,9 @@ class Settings:
     chroma_host: str | None = None
     chroma_port: int | None = None
     chroma_ssl: bool = False
+    chroma_api_key: str | None = field(default=None, repr=False)
+    chroma_tenant: str | None = None
+    chroma_database: str | None = None
 
     storage_backend: str = "local"
     r2_account_id: str | None = None
@@ -221,6 +224,14 @@ class Settings:
 
     @property
     def chroma_configured(self) -> bool:
+        cloud_host = (self.chroma_host or "").strip().lower()
+        cloud_fields_present = bool(
+            self.chroma_api_key or self.chroma_tenant or self.chroma_database
+        )
+        if cloud_fields_present or cloud_host == "api.trychroma.com":
+            return bool(
+                self.chroma_api_key and self.chroma_tenant and self.chroma_database
+            )
         if self.chroma_host:
             return self.chroma_port is not None
         return bool(self.chroma_persist_directory)
@@ -580,6 +591,9 @@ def get_settings() -> Settings:
         chroma_host=_env("CHROMA_HOST"),
         chroma_port=parsed_chroma_port,
         chroma_ssl=_bool_env("CHROMA_SSL", False),
+        chroma_api_key=_env("CHROMA_API_KEY"),
+        chroma_tenant=_env("CHROMA_TENANT"),
+        chroma_database=_env("CHROMA_DATABASE"),
         llm_provider=_env("LLM_PROVIDER", "local") or "local",
         llm_model_name=_env("LLM_MODEL_NAME", "equiped-gemma3-4b-qat-q4")
         or "equiped-gemma3-4b-qat-q4",

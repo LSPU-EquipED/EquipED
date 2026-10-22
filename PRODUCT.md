@@ -33,6 +33,10 @@ Every new ITSO evaluation requires online cross-checking for criteria 1 and 2. C
 
 Content warnings on a successfully processed SLM remain visible and do not block ITSO evaluation. Failed or unfinished extraction remains ineligible. Retired ITSO harness versions cannot execute new evaluations. Historical evidence-only adapter-2 records retain their saved evidence and withheld scores, while new scored evaluations use an explicit history-preserving rubric revision. Human review remains authoritative.
 
+## Configured vector storage
+
+Deployment administrators may explicitly configure Chroma Cloud to store institutional reference, rubric and policy vectors with their existing document passages and metadata. Migration preserves stored evidence and verifies the copy before connection cutover, retaining the local backup. Embedding computation and inference configuration remain separate; policy evidence delivery still requires the enabled private-model path. This storage migration does not activate SLM vector indexing or change specialist scoring.
+
 ## Reviewed DPO training sources
 
 An active, approved administrator can import a reviewed frozen DPO package through the local administrative script and select it as one agent's training source. The existing Admin readiness and Start Training Run workflow use that exact package, including its evidence and reasoning, until the administrator restores feedback export or selects another package. Historical feedback, evaluations, training jobs and fine-tuned models remain available. Package checks validate identity, hashes and provenance; they do not certify synthetic corrections as faculty judgments. Invalid active packages fail explicitly rather than silently selecting different data.

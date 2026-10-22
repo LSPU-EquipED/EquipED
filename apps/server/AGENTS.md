@@ -24,7 +24,7 @@
 ## Data And Security
 
 - Enforce authentication and strict ownership verification across service boundaries; availability of shared institutional references never weakens SLM or evaluation job ownership isolation.
-- SLMs are direct evaluation inputs and are never embedded into vector storage; only spec-authorized reference, rubric, and policy documents are stored in local Chroma collections.
+- SLMs are direct evaluation inputs and are never embedded into vector storage; only spec-authorized reference, rubric, and policy documents are stored in Chroma collections. Explicitly configured Chroma Cloud is an authorized storage option; preserve document scoping and the private-model gate for policy delivery.
 - OCR and document ingestion must fail closed on errors without persisting partial or degraded ingestion state.
 - Keep policy evidence and validation residency-gated and strictly local; report bounded, non-sensitive failure errors.
 
