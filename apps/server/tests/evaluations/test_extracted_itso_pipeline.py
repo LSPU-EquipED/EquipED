@@ -6,6 +6,7 @@ import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from equiped_harness import (
     AgentEvaluationResult,
     CompletionResult,
@@ -35,12 +36,16 @@ from server.tests.rubrics.helpers import seed_all_rubrics
 
 
 class ScriptedTransport:
-    def __init__(self):
+    def __init__(self, *, late_provider_failure=False):
         self.requests = []
+        self.late_provider_failure = late_provider_failure
+        self.source_received = False
 
     async def get(self, request, deadline):
         self.requests.append(request)
         if request.kind == "duckduckgo":
+            if self.late_provider_failure and self.source_received:
+                return Response(503, {}, b"")
             return Response(
                 200,
                 {},
@@ -48,6 +53,7 @@ class ScriptedTransport:
                 b"Privacy Engineering Study</a>",
             )
         if request.kind == "document":
+            self.source_received = True
             return Response(
                 200,
                 {"content-type": "text/html"},
@@ -76,13 +82,33 @@ class SchemaModel:
                 "The SLM states: Protect institutional learning data. "
                 f"Reference comparison: [source 1] {citation}."
             )
+            limitation = data.get("reference_review_facts", {}).get("limitation")
+            if row["criterion_id"] == "ITSO-02" and limitation:
+                row["justification"] += " " + limitation
             row["evidence"] = ["Protect institutional learning data."]
             row["chunk_ids"] = [self.chunk_id]
         return CompletionResult(json.dumps(payload), self.model, attempts=1)
 
 
+@pytest.mark.parametrize(
+    ("reference_section", "late_provider_failure"),
+    [
+        ("References:\nAuthor, A. (2021). Privacy Engineering Study.", False),
+        (
+            "Learning Resources:\n1. Institutional Privacy Council. (n.d.). "
+            "Privacy Engineering Study.",
+            False,
+        ),
+        (
+            "Learning Resources:\n1. Institutional Privacy Council. (n.d.). "
+            "Privacy Engineering Study.\n2. Other Research Group. (2022). "
+            "Secure Learning Materials.",
+            True,
+        ),
+    ],
+)
 def test_extracted_itso_dispatches_search_evaluates_and_persists(
-    db_session, monkeypatch
+    db_session, monkeypatch, reference_section, late_provider_failure
 ):
     owner = create_user(
         db_session,
@@ -94,8 +120,7 @@ def test_extracted_itso_dispatches_search_evaluates_and_persists(
     evaluation_id, document_id = uuid4(), uuid4()
     chunk_id = uuid4()
     source_text = (
-        "SLM Content:\nProtect institutional learning data.\n\n"
-        "References:\nAuthor, A. (2021). Privacy Engineering Study."
+        "SLM Content:\nProtect institutional learning data.\n\n" + reference_section
     )
     db_session.add(
         Document(
@@ -142,7 +167,7 @@ def test_extracted_itso_dispatches_search_evaluates_and_persists(
     )
 
     model = SchemaModel(chunk_id)
-    transport = ScriptedTransport()
+    transport = ScriptedTransport(late_provider_failure=late_provider_failure)
     settings = Settings(itso_verification_enabled=True)
     monkeypatch.setattr(
         "server.modules.evaluations.dispatch.get_llm_client_for_agent",
@@ -180,10 +205,21 @@ def test_extracted_itso_dispatches_search_evaluates_and_persists(
     assert not failures
     assert len(results) == 1 and results[0].success
     assert len(model.calls) == 2
-    assert [request.kind for request in transport.requests] == [
-        "duckduckgo",
-        "document",
-    ]
+    request_kinds = [request.kind for request in transport.requests]
+    assert request_kinds[:2] == ["duckduckgo", "document"]
+    if late_provider_failure:
+        report = json.loads(model.calls[0].user_context)[
+            "public_reference_verification"
+        ]
+        assert (
+            report["references"][0]["source_url"] == "https://reference.example/study"
+        )
+        assert report["references"][1]["status"] == "unavailable"
+        assert report["references"][1]["excerpt"] is None
+        assert request_kinds.count("duckduckgo") <= 5
+        assert request_kinds.count("document") == 1
+    else:
+        assert request_kinds == ["duckduckgo", "document"]
     assert any(
         "Protect institutional learning data." in " ".join(score.evidence)
         for score in results[0].criterion_scores

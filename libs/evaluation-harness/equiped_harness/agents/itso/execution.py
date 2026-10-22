@@ -1024,6 +1024,54 @@ def _execute_criteria(
     )
 
 
+def _log_reference_failure(report: dict[str, Any]) -> None:
+    """Explain missing source evidence using bounded counts, never source text."""
+
+    def count(value: Any, maximum: int = 1000) -> int:
+        return value if type(value) is int and 0 <= value <= maximum else 0
+
+    attempts = report.get("attempts")
+    attempts = attempts if isinstance(attempts, dict) else {}
+    candidates = http_errors = title_mismatches = no_passage = 0
+    provider_http_errors = provider_access_errors = provider_timeouts = 0
+    for row in report["references"][:5]:
+        errors = row.get("errors")
+        if isinstance(errors, list):
+            for error in errors[:4]:
+                provider_http_errors += error == "provider_http_error"
+                provider_access_errors += error == "public_page_access_unavailable"
+                provider_timeouts += error == "tool_deadline_exceeded"
+        searches = row.get("search_attempts")
+        if isinstance(searches, list):
+            for attempt in searches[:2]:
+                if isinstance(attempt, dict):
+                    candidates += count(attempt.get("candidate_count"), 5)
+        sources = row.get("source_attempts")
+        if isinstance(sources, list):
+            for attempt in sources[:10]:
+                if not isinstance(attempt, dict):
+                    continue
+                http_errors += attempt.get("reason") == "http_error"
+                title_mismatches += attempt.get("reason") == "title_mismatch"
+                no_passage += attempt.get("reason") == "no_substantive_passage"
+    logger.warning(
+        "[ITSO_REFERENCE_CHECK] usable_sources=0 | references=%d | "
+        "search_attempts=%d | candidates=%d | source_attempts=%d | "
+        "source_http_errors=%d | title_mismatches=%d | no_passage=%d | "
+        "provider_http_errors=%d | provider_access_errors=%d | provider_timeouts=%d",
+        len(report["references"]),
+        count(attempts.get("search")),
+        candidates,
+        count(attempts.get("source")),
+        http_errors,
+        title_mismatches,
+        no_passage,
+        provider_http_errors,
+        provider_access_errors,
+        provider_timeouts,
+    )
+
+
 def _references(context: ITSOExecutionContext) -> list[str]:
     cached = dict(context.precomputed_context)
     references: list[str] = []
@@ -1149,6 +1197,7 @@ def _references(context: ITSOExecutionContext) -> list[str]:
         for item in report["references"]
     )
     if not usable:
+        _log_reference_failure(report)
         raise AgentExecutionError(
             "ITSO adapter 3 requires at least one usable public reference passage"
         )
