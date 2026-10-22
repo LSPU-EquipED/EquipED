@@ -4,13 +4,14 @@ from uuid import uuid4
 
 import pytest
 from equiped_harness import ExecutionConfig, ToolConfig, evaluate
-from equiped_harness.agents.itso.tools.contracts import Code, VerificationError
+from equiped_harness.agents.itso.tools.contracts import Code
 from equiped_harness.agents.itso.tools.reference_search import (
     ReferenceToolsUnavailable,
     build_public_reference_report,
     extract_bibliography,
 )
 from equiped_harness.contracts.snapshots import SnapshotIntegrityError
+from equiped_harness.exceptions import AgentExecutionError
 from equiped_harness.tools.http import Response
 from test_evaluate import prepared_request
 
@@ -63,20 +64,24 @@ def test_search_requires_explicit_enabled_config_and_transport():
     assert error.value.code == Code.DISABLED
 
 
-def test_public_search_uses_injected_transport_and_preserves_error_code():
+def test_public_search_preserves_provider_errors_as_unavailable_reference_outcomes():
     transport = ScriptedTransport()
 
-    with pytest.raises(VerificationError) as error:
-        asyncio.run(
-            build_public_reference_report(
-                "References:\nSmith, J. (2020). Privacy Engineering.",
-                enabled=True,
-                settings=type("EnabledTools", (), {"enabled": True})(),
-                transport=transport,
-            )
+    report = asyncio.run(
+        build_public_reference_report(
+            "References:\nSmith, J. (2020). Privacy Engineering.",
+            enabled=True,
+            settings=type("EnabledTools", (), {"enabled": True})(),
+            transport=transport,
         )
+    )
 
-    assert error.value.code == Code.HTTP
+    assert report["references"][0]["status"] == "unavailable"
+    assert report["references"][0]["excerpt"] is None
+    assert all(
+        attempt["error_code"] == Code.HTTP.value
+        for attempt in report["references"][0]["search_attempts"]
+    )
     assert transport.requests[0].kind == "duckduckgo"
 
 
@@ -112,7 +117,7 @@ def test_public_evaluate_replaces_client_report_before_model(monkeypatch):
         precomputed_context={"public_reference_verification": ["client report"]}
     )
 
-    with pytest.raises(VerificationError) as error:
+    with pytest.raises(AgentExecutionError, match="usable public reference passage"):
         evaluate(
             request,
             UnusedModel(),
@@ -120,7 +125,6 @@ def test_public_evaluate_replaces_client_report_before_model(monkeypatch):
             tools=ToolConfig(enabled=True, transport=transport),
         )
 
-    assert error.value.code == Code.HTTP
     assert transport.requests[0].kind == "duckduckgo"
 
 
