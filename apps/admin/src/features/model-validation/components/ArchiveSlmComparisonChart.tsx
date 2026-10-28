@@ -4,11 +4,11 @@ import { archiveMetrics } from '../utils/archiveMetrics';
 const AXIS_MAX = 2;
 const ticks = [0, 1, 2];
 const series = [
-  { label: 'Base MAE', color: '#4a8de2' },
-  { label: 'Fine-tuned MAE', color: '#4a9d61' },
+  { label: 'Base MAE', className: 'bg-text-muted' },
+  { label: 'Fine-tuned MAE', className: 'bg-primary' },
 ] as const;
 const columns =
-  'grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)_2.75rem] gap-x-3 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_3rem]';
+  'grid grid-cols-[minmax(0,1fr)_3rem] gap-x-3 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_3rem]';
 
 export function ArchiveSlmComparisonChart({ experiment }: { experiment: ArchivedExperiment }) {
   const rows = experiment.runs.flatMap((run) => {
@@ -34,9 +34,9 @@ export function ArchiveSlmComparisonChart({ experiment }: { experiment: Archived
             key={run.adapter_validation_id}
             role="group"
             aria-label={run.title}
-            className={`${columns} items-center`}
+            className={`${columns} items-center border-b border-border/60 py-2 sm:py-0`}
           >
-            <span className="text-right text-xs leading-relaxed text-text-muted [overflow-wrap:anywhere]">
+            <span className="col-span-2 text-xs leading-relaxed text-text-muted sm:col-span-1 sm:pr-1 sm:text-right [overflow-wrap:anywhere]">
               {run.title}
             </span>
             <div aria-hidden="true" className="relative flex min-w-0 flex-col gap-1 py-3">
@@ -50,10 +50,9 @@ export function ArchiveSlmComparisonChart({ experiment }: { experiment: Archived
               {values.map((value, index) => (
                 <span
                   key={series[index].label}
-                  className="relative h-5 rounded-sm"
+                  className={`relative h-5 rounded-sm ${series[index].className}`}
                   style={{
                     width: `${(Math.min(value, AXIS_MAX) / AXIS_MAX) * 100}%`,
-                    backgroundColor: series[index].color,
                   }}
                 />
               ))}
@@ -69,7 +68,7 @@ export function ArchiveSlmComparisonChart({ experiment }: { experiment: Archived
           </div>
         ))}
         <div aria-hidden="true" className={columns}>
-          <div className="relative col-start-2 h-5 text-xs tabular-nums text-text-muted">
+          <div className="relative h-5 text-xs tabular-nums text-text-muted sm:col-start-2">
             {ticks.map((tick) => (
               <span
                 key={tick}
@@ -90,11 +89,7 @@ export function ArchiveSlmComparisonChart({ experiment }: { experiment: Archived
       <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs text-text">
         {series.map((item) => (
           <span key={item.label} className="inline-flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="size-2.5 rounded-full"
-              style={{ backgroundColor: item.color }}
-            />
+            <span aria-hidden="true" className={`size-2.5 rounded-xs ${item.className}`} />
             {item.label}
           </span>
         ))}

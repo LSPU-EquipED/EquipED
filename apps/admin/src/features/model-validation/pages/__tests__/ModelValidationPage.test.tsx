@@ -1,12 +1,19 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 import React from 'react';
 import { ModelValidationPage } from '../ModelValidationPage';
 import * as queriesModule from '../../hooks/useModelValidationQueries';
 import type { ModelValidationListResponse, ModelValidationMetricsResponse } from '../../types';
+import { mockNativeDialog } from '../../components/__tests__/nativeDialog';
+
+let restoreDialog: () => void;
+beforeAll(() => {
+  restoreDialog = mockNativeDialog();
+});
+afterAll(() => restoreDialog());
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -235,7 +242,7 @@ describe('ModelValidationPage', () => {
     expect(screen.getByLabelText(/Agent progress for/i)).toBeDefined();
   });
 
-  it('opens the selected run review and linked evaluation, then closes it by button or Escape', () => {
+  it('opens the selected run review and linked evaluation, then closes it by button or Escape', async () => {
     vi.spyOn(queriesModule, 'useModelValidationHistory').mockReturnValue({
       data: mockHistoryData,
       isLoading: false,
@@ -275,25 +282,29 @@ describe('ModelValidationPage', () => {
       );
     openReview();
     expect(
-      screen.getByRole('region', {
+      screen.getByRole('dialog', {
         name: 'Validation details for Algorithms SLM',
       }),
     ).toBeDefined();
     expect(screen.getByText('eval-1')).toBeDefined();
     expect(screen.getByText('3.20 s')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Close validation details' }));
-    expect(
-      screen.queryByRole('region', {
-        name: 'Validation details for Algorithms SLM',
-      }),
-    ).toBeNull();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', {
+          name: 'Validation details for Algorithms SLM',
+        }),
+      ).toBeNull(),
+    );
 
     openReview();
-    fireEvent.keyDown(window, { key: 'Escape' });
-    expect(
-      screen.queryByRole('region', {
-        name: 'Validation details for Algorithms SLM',
-      }),
-    ).toBeNull();
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', {
+          name: 'Validation details for Algorithms SLM',
+        }),
+      ).toBeNull(),
+    );
   });
 });

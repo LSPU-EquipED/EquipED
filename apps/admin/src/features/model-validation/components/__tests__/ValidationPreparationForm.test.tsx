@@ -335,6 +335,88 @@ describe('ValidationPreparationForm', () => {
     }) as HTMLButtonElement;
     expect(model.textContent).toContain('Choose an agent first');
     expect(model.disabled).toBe(true);
+    expect(
+      screen.getByText('Choose an evaluator agent to load its rubric criteria.'),
+    ).toBeDefined();
+    expect(screen.queryByText(/No active rubric criteria are available/)).toBeNull();
+  });
+
+  it('replaces the choose-agent prompt with the selected rubric criteria', () => {
+    const form = createMockForm({
+      targetAgent: null,
+      criterionDefinitions: [],
+    });
+    const { rerender } = render(<ValidationPreparationForm form={form} />);
+
+    rerender(
+      <ValidationPreparationForm
+        form={{
+          ...form,
+          targetAgent: 'gad',
+          criterionDefinitions: [mockAgents[1]],
+        }}
+      />,
+    );
+
+    expect(screen.queryByText('Choose an evaluator agent to load its rubric criteria.')).toBeNull();
+    expect(screen.queryByText(/No active rubric criteria are available/)).toBeNull();
+    expect(screen.getByLabelText('Expected score for GAD_1 Gender sensitivity')).toBeDefined();
+  });
+
+  it.each([
+    { label: 'missing agent', criterionDefinitions: [] },
+    {
+      label: 'empty rubric',
+      criterionDefinitions: [{ ...mockAgents[0], domains: [], criteria: [] }],
+    },
+  ])(
+    'warns when the selected agent has no active criteria ($label)',
+    ({ criterionDefinitions }) => {
+      render(<ValidationPreparationForm form={createMockForm({ criterionDefinitions })} />);
+
+      expect(
+        screen.getByText(
+          /No active rubric criteria are available for the selected evaluator agent/,
+        ),
+      ).toBeDefined();
+      expect(
+        screen.queryByText('Choose an evaluator agent to load its rubric criteria.'),
+      ).toBeNull();
+    },
+  );
+
+  it('shows loading and retry states before declaring selected criteria missing', () => {
+    const form = createMockForm({ criterionDefinitions: [] });
+    const refetch = vi.fn();
+    const { rerender } = render(
+      <ValidationPreparationForm
+        form={{
+          ...form,
+          criterionCatalog: {
+            isLoading: true,
+            isError: false,
+          } as typeof form.criterionCatalog,
+        }}
+      />,
+    );
+    expect(screen.getByRole('status', { name: 'Loading active rubric criteria' })).toBeDefined();
+    expect(screen.queryByText(/No active rubric criteria are available/)).toBeNull();
+
+    rerender(
+      <ValidationPreparationForm
+        form={{
+          ...form,
+          criterionCatalog: {
+            isLoading: false,
+            isError: true,
+            refetch,
+          } as unknown as typeof form.criterionCatalog,
+        }}
+      />,
+    );
+    expect(screen.queryByText(/No active rubric criteria are available/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading criteria' }));
+    expect(refetch).toHaveBeenCalledOnce();
   });
 
   it('shows a load hint when the chosen version is not loaded', () => {

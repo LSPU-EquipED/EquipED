@@ -14,10 +14,11 @@ export function ValidationBenchmarkScores({
     | 'setExpectedScores'
     | 'criterionCatalog'
     | 'criterionDefinitions'
+    | 'targetAgent'
     | 'handleScoreKeyDown'
   >;
 }) {
-  const { expectedScores, criterionCatalog, criterionDefinitions } = form;
+  const { expectedScores, criterionCatalog, criterionDefinitions, targetAgent } = form;
   const [activeAgentTab, setActiveAgentTab] = useState<string>('sme');
 
   // The default tab state is 'sme'; with a single-agent target that agent may
@@ -81,7 +82,11 @@ export function ValidationBenchmarkScores({
 
       {/* Criteria Panels per Agent */}
       <div className="p-5">
-        {criterionCatalog.isLoading ? (
+        {!targetAgent ? (
+          <p role="status" className="py-3 text-sm leading-relaxed text-text-muted">
+            Choose an evaluator agent to load its rubric criteria.
+          </p>
+        ) : criterionCatalog.isLoading ? (
           <div role="status" aria-label="Loading active rubric criteria" className="space-y-3">
             {Array.from({ length: 5 }).map((_, index) => (
               <div
@@ -112,8 +117,8 @@ export function ValidationBenchmarkScores({
             return count === 0;
           }) ? (
           <p className="rounded-sm border border-warning/40 bg-warning-soft p-4 text-sm font-semibold text-text">
-            No active rubric criteria are available for SME, GAD, or ITSO. Activate the evaluator
-            agent rubrics first.
+            No active rubric criteria are available for the selected evaluator agent. Activate its
+            rubric first.
           </p>
         ) : (
           criterionDefinitions.map((agent) => {

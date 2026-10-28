@@ -30,7 +30,7 @@ export function ArchiveComparisonBars({
             <div key={row.label} className="space-y-1.5">
               <div className="flex items-baseline justify-between gap-3 text-xs">
                 <dt className="text-text-muted">{row.label}</dt>
-                <dd className="font-semibold tabular-nums text-text">{row.display}</dd>
+                <dd className="text-sm font-semibold tabular-nums text-text">{row.display}</dd>
               </div>
               <div aria-hidden="true" className="relative h-3 rounded-xs bg-surface-subtle">
                 {min < 0 ? (
