@@ -12,7 +12,64 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+function chooseExperiment(title: string) {
+  fireEvent.click(screen.getByRole('button', { name: 'Experiment' }));
+  fireEvent.click(screen.getByRole('option', { name: title }));
+}
+
 describe('FineTuningResults', () => {
+  it('uses keyboard-operable experiment selection without a duplicate page header', async () => {
+    vi.spyOn(modelValidationApi, 'getFineTuningArchive').mockResolvedValue(
+      archive as FineTuningArchive,
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FineTuningResults />
+      </QueryClientProvider>,
+    );
+    const trigger = await screen.findByRole('button', { name: 'Experiment' });
+    expect(screen.queryByRole('heading', { name: 'Fine-Tuning Results' })).toBeNull();
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+    const menu = screen.getByRole('listbox', { name: 'Experiment' });
+    fireEvent.keyDown(menu, { key: 'End' });
+    fireEvent.keyDown(menu, { key: 'Enter' });
+    expect(trigger.textContent).toContain(archive.experiments.at(-1)!.title);
+    expect(screen.queryByRole('listbox', { name: 'Experiment' })).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('keeps the chosen SLM and criterion connected to their captured outputs', async () => {
+    vi.spyOn(modelValidationApi, 'getFineTuningArchive').mockResolvedValue(
+      archive as FineTuningArchive,
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FineTuningResults />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('button', { name: 'Experiment' });
+    fireEvent.click(screen.getByText('Experiment details'));
+    fireEvent.click(screen.getByRole('button', { name: 'Evidence & reasoning' }));
+    const run = archive.experiments[0].runs[1];
+    const criterion = run.criteria[0];
+    fireEvent.click(screen.getByRole('button', { name: 'SLM comparison' }));
+    fireEvent.click(screen.getByRole('option', { name: run.title }));
+    fireEvent.click(screen.getByRole('button', { name: 'Criterion' }));
+    fireEvent.click(screen.getByRole('option', { name: `${criterion.id} — ${criterion.title}` }));
+    expect(
+      screen.getByRole('heading', { name: `${criterion.id} — ${criterion.title}` }),
+    ).toBeDefined();
+    for (const [label, output] of [
+      ['Base', criterion.base],
+      ['Fine-tuned model', criterion.adapter],
+    ] as const) {
+      const panel = screen.getByRole('region', { name: `${label} archived explanation` });
+      expect(within(panel).getByText(output.reasoning!)).toBeDefined();
+    }
+    chooseExperiment('Rubric Interpretation');
+    expect(screen.getByText('Experiment details').closest('details')?.open).toBe(false);
+  });
+
   it('highlights GAD grounding while retaining all held-out scoring outcomes', async () => {
     vi.spyOn(modelValidationApi, 'getFineTuningArchive').mockResolvedValue(
       archive as FineTuningArchive,
@@ -22,9 +79,8 @@ describe('FineTuningResults', () => {
         <FineTuningResults />
       </QueryClientProvider>,
     );
-    await screen.findByRole('combobox', { name: 'Experiment' });
-    const select = screen.getByRole('combobox', { name: 'Experiment' });
-    fireEvent.change(select, { target: { value: 'gad-v5' } });
+    await screen.findByRole('button', { name: 'Experiment' });
+    chooseExperiment('Quotation Grounding');
     expect(screen.getByRole('heading', { name: 'Exact quotation grounding' })).toBeDefined();
     expect(screen.getByText('82.5%')).toBeDefined();
     expect(screen.getByText('97.5%')).toBeDefined();
@@ -32,7 +88,9 @@ describe('FineTuningResults', () => {
     expect(screen.queryByRole('heading', { name: 'Result summary' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Reasoning quality' })).toBeNull();
     expect(screen.queryByText('Evidence relevance')).toBeNull();
-    expect(screen.getByRole('option', { name: 'Quotation Grounding' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Experiment' }).textContent).toContain(
+      'Quotation Grounding',
+    );
     const accuracy = screen.getByRole('figure', { name: 'Mean absolute error comparison' });
     expect(within(accuracy).getByText('0.625')).toBeDefined();
     expect(within(accuracy).getByText('0.650')).toBeDefined();
@@ -64,10 +122,12 @@ describe('FineTuningResults', () => {
         <FineTuningResults />
       </QueryClientProvider>,
     );
-    await screen.findByRole('combobox', { name: 'Experiment' });
+    await screen.findByRole('button', { name: 'Experiment' });
+    fireEvent.click(screen.getByRole('button', { name: 'Experiment' }));
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(
       archive.experiments.map((experiment) => experiment.title),
     );
+    fireEvent.keyDown(screen.getByRole('listbox', { name: 'Experiment' }), { key: 'Escape' });
     for (const name of ['SME', 'GAD', 'Coordinator', 'ITSO']) {
       expect(screen.queryByRole('button', { name })).toBeNull();
     }
@@ -77,9 +137,7 @@ describe('FineTuningResults', () => {
     expect(screen.queryByText('Not yet formally assessed')).toBeNull();
     expect(screen.queryByText('Quotation grounding not audited.')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Training' })).toBeNull();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Experiment' }), {
-      target: { value: 'v9' },
-    });
+    chooseExperiment('Rubric Interpretation');
     fireEvent.click(screen.getByText('Experiment details'));
     expect(screen.getByText(/All archived criteria included/)).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Training' }));
@@ -88,9 +146,7 @@ describe('FineTuningResults', () => {
     expect(
       screen.getByRole('figure', { name: 'Preference reward margin comparison' }),
     ).toBeDefined();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Experiment' }), {
-      target: { value: 'v7' },
-    });
+    chooseExperiment('Synthetic Score Corrections');
     expect(screen.queryByRole('button', { name: 'Training' })).toBeNull();
     expect(screen.getByText('Experiment details').closest('details')?.open).toBe(false);
     fireEvent.click(screen.getByText('Experiment details'));
@@ -156,7 +212,7 @@ describe('FineTuningResults', () => {
       </QueryClientProvider>,
     );
     expect(
-      await screen.findByRole('combobox', { name: 'Experiment' }, { timeout: 5000 }),
+      await screen.findByRole('button', { name: 'Experiment' }, { timeout: 5000 }),
     ).toBeDefined();
     expect(screen.queryByRole('heading', { name: 'Result summary' })).toBeNull();
     fireEvent.click(screen.getByText('Experiment details'));
@@ -188,7 +244,7 @@ describe('FineTuningResults', () => {
         <FineTuningResults />
       </QueryClientProvider>,
     );
-    await screen.findByRole('combobox', { name: 'Experiment' });
+    await screen.findByRole('button', { name: 'Experiment' });
     expect(screen.queryByRole('region', { name: 'Evaluation overview' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Comparisons' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Reasoning quality' })).toBeNull();
@@ -203,10 +259,8 @@ describe('FineTuningResults', () => {
         <FineTuningResults />
       </QueryClientProvider>,
     );
-    await screen.findByRole('combobox', { name: 'Experiment' });
-    fireEvent.change(screen.getByRole('combobox', { name: 'Experiment' }), {
-      target: { value: 'gad-v5' },
-    });
+    await screen.findByRole('button', { name: 'Experiment' });
+    chooseExperiment('Quotation Grounding');
     const create = vi.fn((_blob: Blob) => 'blob:archive');
     const revoke = vi.fn();
     const OriginalURL = URL;
