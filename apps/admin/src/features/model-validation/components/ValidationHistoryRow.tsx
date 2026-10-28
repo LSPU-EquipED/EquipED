@@ -147,7 +147,8 @@ export function ValidationHistoryRow({
               size="sm"
               onClick={onToggle}
               aria-expanded={isExpanded}
-              aria-controls={isExpanded ? `validation-detail-${item.validation_id}` : undefined}
+              aria-haspopup="dialog"
+              aria-controls={isExpanded ? `validation-review-${item.validation_id}` : undefined}
               aria-label={`${isExpanded ? 'Close' : 'Open'} evaluation for ${item.document_title ?? 'Untitled SLM'}`}
               className="h-8 gap-1.5 px-2.5 text-xs font-semibold"
             >

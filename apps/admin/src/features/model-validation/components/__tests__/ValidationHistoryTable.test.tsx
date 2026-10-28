@@ -1,11 +1,25 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { ValidationHistoryTable } from '../ValidationHistoryTable';
 import type { ModelValidationItem, ModelValidationListResponse } from '../../types';
+import { mockNativeDialog } from './nativeDialog';
 
-afterEach(cleanup);
+vi.mock('../../hooks/useModelValidationQueries', () => ({
+  useModelValidationDetail: () => ({ data: null, isLoading: false, isError: false }),
+  useModelValidationEvaluation: () => ({ data: null, isLoading: false, isError: false }),
+}));
+
+let restoreDialog: () => void;
+beforeAll(() => {
+  restoreDialog = mockNativeDialog();
+});
+afterAll(() => restoreDialog());
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const item: ModelValidationItem = {
   validation_id: 'val-1',
@@ -43,6 +57,40 @@ function renderTable(onRerun?: (i: ModelValidationItem) => void) {
 }
 
 describe('ValidationHistoryTable re-run', () => {
+  it.each(['close button', 'backdrop', 'Escape'])(
+    'opens review as a modal and restores the trigger after closing with %s',
+    (method) => {
+      vi.useFakeTimers();
+      renderTable();
+      const trigger = screen.getByRole('button', { name: 'Open evaluation for Algorithms SLM' });
+      trigger.focus();
+      fireEvent.click(trigger);
+      act(() => {
+        vi.advanceTimersByTime(16);
+      });
+      const dialog = screen.getByRole('dialog', { name: 'Validation details for Algorithms SLM' });
+      expect((dialog as HTMLDialogElement).open).toBe(true);
+      expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');
+      expect(trigger.getAttribute('aria-controls')).toBe(dialog.id);
+      expect(document.body.style.overflow).toBe('hidden');
+      const close = screen.getByRole('button', { name: 'Close validation details' });
+      expect(document.activeElement).toBe(close);
+
+      if (method === 'close button') fireEvent.click(close);
+      else if (method === 'backdrop') fireEvent.click(dialog);
+      else fireEvent(dialog, new Event('cancel', { cancelable: true }));
+
+      expect(dialog.isConnected).toBe(true);
+      act(() => {
+        vi.advanceTimersByTime(240);
+      });
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+      expect(document.body.style.overflow).toBe('');
+      expect(screen.getByText('Algorithms SLM')).toBeDefined();
+    },
+  );
+
   it('calls onRerun with the row item', () => {
     const onRerun = vi.fn();
     renderTable(onRerun);
