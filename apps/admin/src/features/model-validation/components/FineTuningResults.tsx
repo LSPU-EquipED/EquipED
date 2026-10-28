@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CaretDown, DownloadSimple } from '@phosphor-icons/react';
-import { Button, cn, TABLE_STYLES } from '@equiped/ui';
+import { Button, cn, Dropdown, Skeleton, TABLE_STYLES } from '@equiped/ui';
 import { modelValidationApi } from '../api/modelValidation.api';
 import type { ArchivedExperiment, FineTuningArchive } from '../archiveTypes';
 import { archiveMetrics } from '../utils/archiveMetrics';
@@ -47,7 +47,7 @@ function Scores({ experiment }: { experiment: ArchivedExperiment }) {
           <strong className="text-destructive">{metrics.farther}</strong> farther
         </span>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-sm border border-border">
         <table className={TABLE_STYLES.table} aria-label="Archived results by SLM">
           <thead>
             <tr>
@@ -163,33 +163,37 @@ function Training({ experiment }: { experiment: ArchivedExperiment }) {
               </section>
             ))}
           </div>
-          <table className={TABLE_STYLES.table} aria-label="Archived training metrics">
-            <thead>
-              <tr>
-                {['Training measure', 'First logged step', 'Last logged step'].map((h) => (
-                  <th key={h} className={TABLE_STYLES.th} scope="col">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                ['DPO loss', t.first_loss, t.last_loss],
-                ['Preference reward margin', t.first_margin, t.last_margin],
-              ].map(([name, first, last]) => (
-                <tr key={name} className="border-t border-border">
-                  <th scope="row" className={TABLE_STYLES.td}>
-                    {name}
-                  </th>
-                  <td className={cn(TABLE_STYLES.td, 'tabular-nums')}>
-                    {Number(first).toFixed(6)}
-                  </td>
-                  <td className={cn(TABLE_STYLES.td, 'tabular-nums')}>{Number(last).toFixed(6)}</td>
+          <div className="overflow-x-auto rounded-sm border border-border">
+            <table className={TABLE_STYLES.table} aria-label="Archived training metrics">
+              <thead>
+                <tr>
+                  {['Training measure', 'First logged step', 'Last logged step'].map((h) => (
+                    <th key={h} className={TABLE_STYLES.th} scope="col">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {[
+                  ['DPO loss', t.first_loss, t.last_loss],
+                  ['Preference reward margin', t.first_margin, t.last_margin],
+                ].map(([name, first, last]) => (
+                  <tr key={name} className="border-t border-border">
+                    <th scope="row" className={TABLE_STYLES.td}>
+                      {name}
+                    </th>
+                    <td className={cn(TABLE_STYLES.td, 'tabular-nums')}>
+                      {Number(first).toFixed(6)}
+                    </td>
+                    <td className={cn(TABLE_STYLES.td, 'tabular-nums')}>
+                      {Number(last).toFixed(6)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <p className="text-xs text-text-muted">
             First and last logged measurements only. No intermediate learning curve was archived.
           </p>
@@ -227,26 +231,15 @@ export function FineTuningResults() {
   const activeSection = availableSections.includes(section) ? section : availableSections[0];
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-text">Fine-Tuning Results</h2>
-          <p className="mt-1 text-sm text-text-muted">
-            Explore measured results across the archived experiments.
-          </p>
-        </div>
-        <span className="rounded-sm border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted">
-          Archived snapshots · Read only
-        </span>
-      </header>
+    <section aria-label="Fine-tuning archive" className="min-w-0 space-y-5">
       {query.isLoading ? (
-        <div
-          role="status"
-          aria-label="Loading archived experiments"
-          className="space-y-4 motion-safe:animate-pulse"
-        >
-          <div className="h-10 max-w-lg rounded-sm bg-surface-subtle" />
-          <div className="h-40 border-y border-border bg-surface-subtle" />
+        <div role="status" aria-label="Loading archived experiments" className="space-y-5">
+          <div className="space-y-3 rounded-md border border-border bg-surface p-5">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-10 w-full max-w-lg" />
+            <Skeleton className="h-3 w-2/3" />
+          </div>
+          <Skeleton className="h-64 w-full rounded-md" />
           <span className="sr-only">Loading archived experiments…</span>
         </div>
       ) : query.isError ? (
@@ -260,53 +253,54 @@ export function FineTuningResults() {
         <p className="text-sm text-text-muted">No archived experiments are available.</p>
       ) : (
         <article className="min-w-0 space-y-5">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <label className="w-full min-w-0 space-y-2 text-xs font-semibold text-text sm:max-w-lg">
-              Experiment
-              <select
+          <div className="rounded-md border border-border bg-surface p-4 sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <Dropdown
                 id="fine-tuning-experiment"
+                label="Experiment"
                 value={experiment.id}
-                onChange={(event) => {
-                  setSelected(event.target.value);
+                onChange={(value) => {
+                  setSelected(value);
                   setSection('Comparisons');
                 }}
-                className="block min-h-10 w-full rounded-sm border border-input bg-surface px-3 text-sm font-normal text-text focus-visible:outline-2 focus-visible:outline-ring"
+                options={experiments.map((e) => ({ value: e.id, label: e.title }))}
+                size="md"
+                containerClassName="min-w-0 sm:max-w-lg"
+                className="w-full"
+                menuClassName="w-full"
+              />
+              <Button
+                variant="secondary"
+                className="shrink-0"
+                onClick={() => downloadArchive(archive, experiment)}
               >
-                {experiments.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => downloadArchive(archive, experiment)}
-            >
-              <DownloadSimple size={16} aria-hidden="true" />
-              Export results
-            </Button>
+                <DownloadSimple size={16} aria-hidden="true" />
+                Export results
+              </Button>
+            </div>
+            <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-5 gap-y-2 border-t border-border pt-3 text-xs leading-relaxed text-text-muted">
+              <p>
+                {experiment.scope} · {experiment.runs.length} comparisons
+                {experiment.pair_count == null
+                  ? ''
+                  : ` · ${experiment.pair_count} exported training pairs`}
+              </p>
+              <span>Archived · Read only</span>
+            </div>
           </div>
-          <p className="text-xs text-text-muted">
-            {experiment.scope} · {experiment.runs.length} comparisons
-            {experiment.pair_count == null
-              ? ''
-              : ` · ${experiment.pair_count} exported training pairs`}
-          </p>
           <ExperimentOverview experiment={experiment} />
-          <details key={experiment.id} className="group rounded-sm border border-border bg-surface">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-sm px-4 py-3 text-sm font-semibold text-text focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+          <details key={experiment.id} className="group rounded-md border border-border bg-surface">
+            <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 rounded-md px-4 py-3 text-sm font-semibold text-text focus-visible:outline-2 focus-visible:outline-ring sm:px-5 [&::-webkit-details-marker]:hidden">
               <span>Experiment details</span>
               <CaretDown
                 className="size-4 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none"
                 aria-hidden="true"
               />
             </summary>
-            <div className="min-w-0 space-y-5 border-t border-border p-4">
+            <div className="min-w-0 border-t border-border">
               <div
                 aria-label="Experiment views"
-                className="flex gap-1 overflow-x-auto border-b border-border"
+                className="grid grid-cols-2 gap-1 border-b border-border bg-surface-subtle/50 p-2 sm:flex sm:flex-wrap sm:gap-2 sm:px-5"
               >
                 {availableSections.map((view) => (
                   <button
@@ -315,17 +309,17 @@ export function FineTuningResults() {
                     aria-pressed={activeSection === view}
                     onClick={() => setSection(view)}
                     className={cn(
-                      'min-h-10 shrink-0 cursor-pointer border-b-2 px-3 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-ring',
+                      'min-h-10 cursor-pointer rounded-sm border px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-ring',
                       activeSection === view
-                        ? 'border-primary text-primary'
-                        : 'border-transparent text-text-muted hover:text-text',
+                        ? 'border-border bg-surface text-primary'
+                        : 'border-transparent text-text-muted hover:bg-surface hover:text-text',
                     )}
                   >
                     {view}
                   </button>
                 ))}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 p-4 sm:p-5">
                 {activeSection === 'Comparisons' ? (
                   <Scores experiment={experiment} />
                 ) : activeSection === 'Evidence & reasoning' ? (
@@ -340,6 +334,6 @@ export function FineTuningResults() {
           </details>
         </article>
       )}
-    </div>
+    </section>
   );
 }
