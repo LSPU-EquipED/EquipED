@@ -1,15 +1,20 @@
 import { useState } from 'react';
+import { Dropdown } from '@equiped/ui';
 import type { ArchivedExperiment, ArchivedOutput } from '../archiveTypes';
 import { FINE_TUNED_MODEL_LABEL } from '../utils/archivePresentation';
 
 function Output({ label, value }: { label: string; value: ArchivedOutput }) {
   return (
-    <section aria-label={`${label} archived explanation`} className="min-w-0 space-y-4">
+    <section
+      aria-label={`${label} archived explanation`}
+      className="min-w-0 space-y-5 rounded-sm border border-border p-4 sm:p-5"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-3">
-        <h4 className="font-semibold text-text">
-          {label} <span className="ml-2 tabular-nums">{value.score}/4</span>
-        </h4>
-        <span className="text-xs text-text-muted">
+        <h4 className="text-sm font-semibold text-text">{label}</h4>
+        <span className="text-sm font-semibold tabular-nums text-text">
+          {value.score} <span className="font-normal text-text-muted">/ 4</span>
+        </span>
+        <p className="w-full text-xs text-text-muted">
           {value.status === 'repaired'
             ? 'Repaired model response'
             : value.status === 'ok'
@@ -17,7 +22,7 @@ function Output({ label, value }: { label: string; value: ArchivedOutput }) {
               : value.status === 'fallback'
                 ? 'Fallback — not model reasoning'
                 : 'Status unavailable'}
-        </span>
+        </p>
       </div>
       <div>
         <h5 className="mb-2 text-xs font-semibold text-text">Stored source evidence</h5>
@@ -25,7 +30,7 @@ function Output({ label, value }: { label: string; value: ArchivedOutput }) {
           value.evidence.map((quote, i) => (
             <blockquote
               key={i}
-              className="mb-2 whitespace-pre-wrap rounded-sm bg-surface-subtle/50 p-3 text-sm leading-relaxed text-text [overflow-wrap:anywhere]"
+              className="mb-3 whitespace-pre-wrap border-l-2 border-border pl-3 text-sm leading-relaxed text-text [overflow-wrap:anywhere]"
             >
               {quote}
             </blockquote>
@@ -65,42 +70,38 @@ function Output({ label, value }: { label: string; value: ArchivedOutput }) {
 export function ArchivedEvidence({ experiment }: { experiment: ArchivedExperiment }) {
   const [runIndex, setRunIndex] = useState(0);
   const [criterionId, setCriterionId] = useState('OP-05');
-  const run = experiment.runs[runIndex];
+  const runs = experiment.runs.filter((run) => run.criteria.length > 0);
+  const run = runs[runIndex] ?? runs[0];
+  if (!run) return <p className="text-sm text-text-muted">No archived evidence is available.</p>;
   const criterion = run.criteria.find((c) => c.id === criterionId) ?? run.criteria[0];
   return (
-    <div className="space-y-5">
+    <div className="@container/archive-evidence min-w-0 space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="space-y-1.5 text-xs font-semibold text-text">
-          SLM comparison
-          <select
-            className="block min-h-10 w-full rounded-sm border border-input bg-surface px-3 text-sm font-normal text-text focus-visible:outline-2 focus-visible:outline-ring"
-            value={runIndex}
-            onChange={(e) => setRunIndex(Number(e.target.value))}
-          >
-            {experiment.runs.map((r, i) => (
-              <option key={r.adapter_validation_id} value={i}>
-                {r.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="space-y-1.5 text-xs font-semibold text-text">
-          Criterion
-          <select
-            className="block min-h-10 w-full rounded-sm border border-input bg-surface px-3 text-sm font-normal text-text focus-visible:outline-2 focus-visible:outline-ring"
-            value={criterion.id}
-            onChange={(e) => setCriterionId(e.target.value)}
-          >
-            {run.criteria.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.id} — {c.title}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Dropdown
+          id="archive-slm"
+          label="SLM comparison"
+          value={runIndex}
+          onChange={setRunIndex}
+          options={runs.map((r, i) => ({ value: i, label: r.title }))}
+          size="md"
+          containerClassName="min-w-0"
+          className="w-full"
+          menuClassName="w-full"
+        />
+        <Dropdown
+          id="archive-criterion"
+          label="Criterion"
+          value={criterion.id}
+          onChange={setCriterionId}
+          options={run.criteria.map((c) => ({ value: c.id, label: `${c.id} — ${c.title}` }))}
+          size="md"
+          containerClassName="min-w-0"
+          className="w-full"
+          menuClassName="w-full"
+        />
       </div>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-base font-semibold text-text">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-t border-border pt-5">
+        <h3 className="min-w-0 text-sm font-semibold leading-relaxed text-text">
           {criterion.id} — {criterion.title}
         </h3>
         <p className="text-xs text-text-muted">
@@ -110,7 +111,7 @@ export function ArchivedEvidence({ experiment }: { experiment: ArchivedExperimen
           : <strong className="text-text">{criterion.expected}/4</strong>
         </p>
       </div>
-      <div className="grid min-w-0 gap-6 md:grid-cols-2">
+      <div className="grid min-w-0 gap-5 @min-[44rem]/archive-evidence:grid-cols-2">
         <Output label="Base" value={criterion.base} />
         <Output label={FINE_TUNED_MODEL_LABEL} value={criterion.adapter} />
       </div>

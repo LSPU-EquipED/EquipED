@@ -43,7 +43,7 @@ export function ValidationDetail({
       id={id}
       role="region"
       aria-label={`Validation details for ${validationId}`}
-      className="space-y-5"
+      className="@container/validation-detail min-w-0 space-y-5"
     >
       {boundForms && boundForms.length > 0 ? (
         <section
@@ -58,7 +58,7 @@ export function ValidationDetail({
               Immutable form snapshots bound at validation admission
             </span>
           </div>
-          <div className="mt-2 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-2 grid gap-2.5 @min-[42rem]/validation-detail:grid-cols-2 @min-[64rem]/validation-detail:grid-cols-3">
             {boundForms.map((form) => (
               <div
                 key={form.agent_id}
@@ -128,7 +128,7 @@ export function ValidationDetail({
         </p>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 @min-[56rem]/validation-detail:grid-cols-2">
         {grouped.map(({ agentId, agentName, rubricVersion, criteria: agentCriteria }) => {
           const isAgentSkipped = agentId === 'coordinator' && isCoordinatorSkipped;
           const matchingBoundForm = boundForms.find((b) => b.agent_id === agentId);

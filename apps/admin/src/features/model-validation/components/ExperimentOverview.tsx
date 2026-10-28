@@ -21,61 +21,84 @@ export function ExperimentOverview({ experiment }: { experiment: ArchivedExperim
       : null;
   if (!metrics.count && !audited.length) return null;
   return (
-    <section aria-label="Evaluation overview" className="border-y border-border bg-surface">
-      <p className="border-b border-border px-4 py-2 text-xs text-text-muted">
-        Base → fine-tuned model · Matching synthetic references
-      </p>
+    <section aria-label="Evaluation overview" className="@container/archive-overview space-y-3">
       <div
-        className={`grid divide-y divide-border ${metrics.count && audited.length ? 'lg:grid-cols-2 lg:divide-x lg:divide-y-0' : ''}`}
+        className={`grid gap-5 ${metrics.count && audited.length ? '@min-[52rem]/archive-overview:grid-cols-2' : ''}`}
       >
         {metrics.count > 0 ? (
-          <section aria-label="Scoring accuracy results" className="space-y-3 p-4 sm:p-5">
-            <h3 className="text-base font-semibold text-text">Scoring accuracy</h3>
-            <p className="text-xs text-text-muted">Mean absolute error (MAE) · Lower is better</p>
-            {metrics.baseMae != null && metrics.adapterMae != null ? (
-              <ArchiveComparisonBars
-                label="Mean absolute error comparison"
-                domain={[0, 3]}
-                rows={[
-                  { label: 'Base', value: metrics.baseMae, display: format(metrics.baseMae) },
-                  {
-                    label: 'Fine-tuned model',
-                    value: metrics.adapterMae,
-                    display: format(metrics.adapterMae),
-                  },
-                ]}
-              />
-            ) : null}
-            <dl className="space-y-2 text-sm">
-              <div className="flex flex-wrap justify-between gap-x-3 gap-y-1">
-                <dt className="text-text-muted">Exact matches</dt>
-                <dd className="font-semibold tabular-nums text-text">
-                  {metrics.baseExact}/{metrics.count} → {metrics.adapterExact}/{metrics.count}
-                </dd>
+          <section
+            aria-label="Scoring accuracy results"
+            className="min-w-0 rounded-md border border-border bg-surface p-4 sm:p-5"
+          >
+            <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h3 className="text-base font-semibold text-text">Scoring accuracy</h3>
+              <span className="text-xs text-text-muted">Lower is better</span>
+              <p className="w-full text-xs text-text-muted">
+                Mean absolute error · Matching synthetic references
+              </p>
+            </div>
+            <div
+              className={`grid gap-5 ${!audited.length ? '@min-[40rem]/archive-overview:grid-cols-[minmax(0,1fr)_minmax(12rem,0.5fr)]' : ''}`}
+            >
+              {metrics.baseMae != null && metrics.adapterMae != null ? (
+                <ArchiveComparisonBars
+                  label="Mean absolute error comparison"
+                  domain={[0, 3]}
+                  rows={[
+                    { label: 'Base', value: metrics.baseMae, display: format(metrics.baseMae) },
+                    {
+                      label: 'Fine-tuned model',
+                      value: metrics.adapterMae,
+                      display: format(metrics.adapterMae),
+                    },
+                  ]}
+                />
+              ) : null}
+              <div
+                className={`space-y-3 border-t border-border pt-4 ${!audited.length ? '@min-[40rem]/archive-overview:border-l @min-[40rem]/archive-overview:border-t-0 @min-[40rem]/archive-overview:pl-5 @min-[40rem]/archive-overview:pt-0' : ''}`}
+              >
+                <dl className="space-y-2 text-sm">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <dt className="text-text-muted">Exact matches</dt>
+                    <dd className="font-semibold tabular-nums text-text">
+                      {metrics.baseExact}/{metrics.count} → {metrics.adapterExact}/{metrics.count}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="text-sm font-medium leading-relaxed text-text">
+                  {difference == null
+                    ? 'Scoring comparison unavailable'
+                    : difference < 0
+                      ? 'Lower observed scoring error'
+                      : difference > 0
+                        ? 'Higher observed scoring error'
+                        : 'No overall change in scoring error'}
+                </p>
+                <p className="text-xs leading-relaxed text-text-muted">
+                  {metrics.count} comparable criterion scores.
+                  {experiment.primary_criteria
+                    ? ` Scoring scope: ${experiment.primary_criteria.join(', ')} only.`
+                    : ' All archived criteria included.'}
+                </p>
               </div>
-            </dl>
-            <p className="text-xs font-medium text-text">
-              {difference == null
-                ? 'Scoring comparison unavailable'
-                : difference < 0
-                  ? 'Lower observed scoring error'
-                  : difference > 0
-                    ? 'Higher observed scoring error'
-                    : 'No overall change in scoring error'}
-            </p>
-            <p className="text-xs leading-relaxed text-text-muted">
-              {metrics.count} comparable criterion scores.
-              {experiment.primary_criteria
-                ? ` Scoring scope: ${experiment.primary_criteria.join(', ')} only.`
-                : ' All archived criteria included.'}
-            </p>
+            </div>
           </section>
         ) : null}
         {audited.length > 0 ? (
-          <section aria-label="Evidence quality results" className="space-y-3 p-4 sm:p-5">
-            <h3 className="text-base font-semibold text-text">Evidence quality</h3>
-            <div className="space-y-2">
-              <h4 className="text-xs font-medium text-text-muted">Exact quotation grounding</h4>
+          <section
+            aria-label="Evidence quality results"
+            className="min-w-0 space-y-4 rounded-md border border-border bg-surface p-4 sm:p-5"
+          >
+            <div>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 className="text-base font-semibold text-text">Evidence quality</h3>
+                <span className="text-xs text-text-muted">Higher is better</span>
+              </div>
+              <h4 className="mt-1 text-xs font-normal text-text-muted">
+                Exact quotation grounding
+              </h4>
+            </div>
+            <div className="space-y-4">
               <ArchiveComparisonBars
                 label="Exact quotation grounding comparison"
                 domain={[0, 100]}

@@ -1,10 +1,17 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { ValidationDetail } from '../ValidationDetail';
 import { ValidationHistoryRow } from '../ValidationHistoryRow';
 import { ValidationReviewPanel } from '../ValidationReviewPanel';
 import type { ModelValidationItem } from '../../types';
+import { mockNativeDialog } from './nativeDialog';
+
+let restoreDialog: () => void;
+beforeAll(() => {
+  restoreDialog = mockNativeDialog();
+});
+afterAll(() => restoreDialog());
 
 // Mock the queries used inside ValidationDetail
 vi.mock('../../hooks/useModelValidationQueries', () => ({
@@ -222,7 +229,12 @@ describe('adapter labelling', () => {
   }
 
   it('shows the adapter version label on a history row when present', () => {
-    renderRow({ ...mockItem, model_variant: 'adapter', adapter_id: 'sme-v3', adapter_label: 'sme-v3' });
+    renderRow({
+      ...mockItem,
+      model_variant: 'adapter',
+      adapter_id: 'sme-v3',
+      adapter_label: 'sme-v3',
+    });
 
     expect(screen.getByText('Fine-tuned sme-v3')).toBeDefined();
   });
@@ -236,7 +248,12 @@ describe('adapter labelling', () => {
   it('shows the adapter version label in the review panel', () => {
     render(
       <ValidationReviewPanel
-        item={{ ...mockItem, model_variant: 'adapter', adapter_id: 'sme-v3', adapter_label: 'sme-v3' }}
+        item={{
+          ...mockItem,
+          model_variant: 'adapter',
+          adapter_id: 'sme-v3',
+          adapter_label: 'sme-v3',
+        }}
         onClose={vi.fn()}
       />,
     );

@@ -18,7 +18,7 @@ export function ValidationAgentScores({
   isTerminal,
 }: ValidationAgentScoresProps) {
   return (
-    <article className="overflow-hidden rounded-sm border border-border bg-surface">
+    <article className="overflow-x-auto rounded-sm border border-border bg-surface">
       <header className="flex items-center justify-between gap-2 border-b border-border bg-surface-subtle px-3.5 py-2.5">
         <div className="flex items-center gap-2">
           <h4 className="text-xs font-bold uppercase tracking-wider text-text">{agentName}</h4>
@@ -41,7 +41,7 @@ export function ValidationAgentScores({
           reported.
         </p>
       ) : (
-        <table className="w-full border-collapse text-left text-xs">
+        <table className="w-full border-collapse text-left text-xs @max-[24rem]/validation-detail:[&_th]:px-2 @max-[24rem]/validation-detail:[&_td]:px-2">
           <thead className="bg-surface text-[10px] font-bold uppercase tracking-wider text-text-muted border-b border-border">
             <tr>
               <th className="px-3 py-2">Criterion</th>
