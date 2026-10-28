@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ModelValidationItem } from '../types';
 
 export function useValidationHistoryState(items: ModelValidationItem[]) {
@@ -34,19 +34,6 @@ export function useValidationHistoryState(items: ModelValidationItem[]) {
     () => filteredItems.slice((currentPage - 1) * pageSize, currentPage * pageSize),
     [currentPage, filteredItems, pageSize],
   );
-
-  useEffect(() => {
-    if (!expandedValidationId) return undefined;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setExpandedValidationId(null);
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [expandedValidationId]);
 
   const selectedItem = items.find((item) => item.validation_id === expandedValidationId) ?? null;
 

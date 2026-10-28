@@ -82,14 +82,14 @@ describe('useValidationHistoryState', () => {
     expect([result.current.startRecord, result.current.endRecord]).toEqual([0, 0]);
   });
 
-  it('keeps the selected review available while filtering and closes it with Escape', () => {
+  it('keeps the selected review available while filtering until the dialog clears it', () => {
     const { result } = renderHook(() => useValidationHistoryState(items));
     act(() => result.current.setExpandedValidationId('run-1'));
     act(() => result.current.setSearchTerm('no matching document'));
     expect(result.current.paginatedItems).toEqual([]);
     expect(result.current.selectedItem).toBe(items[1]);
 
-    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    act(() => result.current.setExpandedValidationId(null));
     expect(result.current.selectedItem).toBeNull();
   });
 });

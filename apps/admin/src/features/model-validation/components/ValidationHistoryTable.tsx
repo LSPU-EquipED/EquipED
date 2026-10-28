@@ -71,13 +71,7 @@ export function ValidationHistoryTable({
       className="w-full rounded-md border border-border bg-surface"
       aria-labelledby="validation-history-heading"
     >
-      <div
-        className={cn(
-          selectedItem
-            ? 'grid items-start lg:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.92fr)]'
-            : 'block',
-        )}
-      >
+      <div>
         <div className="min-w-0">
           <div className="border-b border-border bg-surface px-5 py-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -298,6 +292,7 @@ export function ValidationHistoryTable({
 
         {selectedItem ? (
           <ValidationReviewPanel
+            key={selectedItem.validation_id}
             item={selectedItem}
             onClose={() => setExpandedValidationId(null)}
           />
