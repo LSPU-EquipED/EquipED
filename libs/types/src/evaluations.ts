@@ -101,14 +101,18 @@ export interface LatestEvaluationsResponse {
   items: LatestEvaluationItem[];
 }
 
-/** Coordinator v3 supplement; never part of official criterion arrays or totals. */
+/** Versioned Coordinator supplement; excluded from official criterion totals. */
 export interface CoordinatorAlignmentAdvisory {
-  contract: 'coordinator_alignment.v1';
+  contract: 'coordinator_alignment.v1' | 'coordinator_alignment.v2';
   criterion_id: 'C-01';
   criterion_title: 'Curriculum Alignment';
   advisory_only: true;
   score: number;
   justification: string;
+  evidence?: ReadonlyArray<{
+    source: 'slm' | 'curriculum';
+    excerpt: string;
+  }>;
   objective_matches: ReadonlyArray<{
     objective_id: string;
     objective_text: string;

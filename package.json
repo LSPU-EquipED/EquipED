@@ -21,7 +21,7 @@
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",
     "lint": "pnpm -r run lint",
-    "server:dev": "cd apps && uv run --project server uvicorn server.main:app --reload --host 127.0.0.1 --port 8000",
+    "server:dev": "cd apps && uv run --project server uvicorn server.main:app --reload --reload-dir server --reload-dir ../libs/evaluation-harness --host 127.0.0.1 --port 8000",
     "server:test": "cd apps && uv run --project server pytest server/tests ../libs/evaluation-harness/tests",
     "harness:test": "cd apps && uv run --project server pytest ../libs/evaluation-harness/tests",
     "server:lint": "cd apps && uv run --project server ruff check --config server/pyproject.toml server ../libs/evaluation-harness",

@@ -215,8 +215,12 @@ from `apps/` (or via root package scripts) so `apps/` is the Python package impo
 ```bash
 pnpm server:dev
 # or directly:
-cd apps && uv run --project server uvicorn server.main:app --reload --host 127.0.0.1 --port 8000
+cd apps && uv run --project server uvicorn server.main:app --reload --reload-dir server --reload-dir ../libs/evaluation-harness --host 127.0.0.1 --port 8000
 ```
+
+Both development launchers watch the server and the editable evaluation harness.
+Restart an already running development command after changing its reload paths;
+otherwise harness edits outside `apps/` can leave stale modules in memory.
 
 > Note: Running `uv run --project apps/server` directly from the repository root
 > does **not** preserve `apps/` as the package import root for absolute `server.*`
