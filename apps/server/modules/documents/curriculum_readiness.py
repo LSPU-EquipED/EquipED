@@ -154,11 +154,11 @@ def check_curriculum_readiness(
             from server.modules.documents.service import embed_document_chunks
 
             embed_document_chunks(doc.document_id)
-        except Exception:
+        except Exception as exc:
             logger.warning(
-                "Curriculum auto-heal embedding failed for document %s",
+                "Curriculum auto-heal embedding failed for document %s (%s)",
                 doc.document_id,
-                exc_info=True,
+                type(exc).__name__,
             )
         chroma_available = check_chroma_availability(str(doc.document_id), "curriculum")
     if not chroma_available:

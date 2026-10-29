@@ -72,6 +72,15 @@ def _probe_runtime_dependency(name: str, loader: callable) -> tuple[bool, str]:
     return True, "ok"
 
 
+def _probe_chroma_readiness() -> tuple[bool, str]:
+    try:
+        get_chroma_client().heartbeat()
+    except Exception:
+        # Chroma exceptions can contain endpoint details or credentials.
+        return False, "Chroma heartbeat failed"
+    return True, "ok"
+
+
 def _bootstrap_admin_if_needed() -> None:
     settings = get_settings()
     if not settings.database_configured:
@@ -360,7 +369,7 @@ def create_app() -> FastAPI:
             }
 
         if settings.chroma_configured:
-            ok, detail = _probe_runtime_dependency("chroma", get_chroma_client)
+            ok, detail = _probe_chroma_readiness()
             checks["chroma"] = {"configured": True, "ready": ok, "detail": detail}
 
         if settings.llm_configured:

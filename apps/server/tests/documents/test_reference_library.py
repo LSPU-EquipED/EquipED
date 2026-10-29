@@ -632,13 +632,29 @@ class TestEmbeddingHelpers:
         # this deterministically exercises the safe no-collection path even when
         # a collection exists in the environment.
         fake_client = mock.Mock()
-        fake_client.get_collection.side_effect = RuntimeError("no such collection")
+        from chromadb.errors import NotFoundError
+
+        fake_client.get_collection.side_effect = NotFoundError(
+            "Collection [reference_syllabus_all] does not exist"
+        )
         with patch(
             "server.modules.embeddings.service.get_chroma_client",
             return_value=fake_client,
         ):
             result = delete_chroma_vectors(str(uuid.uuid4()), "syllabus")
         assert result is False
+
+    def test_delete_chroma_vectors_propagates_connection_failure(self):
+        from server.modules.embeddings.service import delete_chroma_vectors
+
+        fake_client = mock.Mock()
+        fake_client.get_collection.side_effect = ConnectionError("Chroma down")
+        with patch(
+            "server.modules.embeddings.service.get_chroma_client",
+            return_value=fake_client,
+        ):
+            with pytest.raises(ConnectionError, match="Chroma down"):
+                delete_chroma_vectors(str(uuid.uuid4()), "syllabus")
 
     def test_delete_chroma_vectors_strict_missing_collection(self):
         """delete_chroma_vectors_strict treats missing collection as benign False."""
@@ -982,7 +998,7 @@ class TestAdminDelete:
         )
 
     def test_delete_curriculum_preserves_sql_on_vector_failure(
-        self, client, db_session
+        self, client, db_session, caplog
     ):
         """When Chroma client fails during delete, delete aborts and preserves SQL."""
         admin = create_user(
@@ -1004,7 +1020,7 @@ class TestAdminDelete:
 
         mock_chroma_client = mock.MagicMock()
         mock_chroma_client.get_collection.side_effect = ConnectionError(
-            "Chroma connection failed"
+            "private-cloud-request-payload"
         )
 
         _login(client, admin.email)
@@ -1017,6 +1033,12 @@ class TestAdminDelete:
         assert (
             resp.json()["detail"]
             == "Reference storage cleanup is temporarily unavailable."
+        )
+        assert "private-cloud-request-payload" not in resp.text
+        assert "private-cloud-request-payload" not in caplog.text
+        assert any(
+            getattr(record, "error_category", None) == "ConnectionError"
+            for record in caplog.records
         )
         # Row and chunks must remain preserved
         assert db_session.get(Document, curr_id) is not None

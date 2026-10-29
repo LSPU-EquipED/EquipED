@@ -1492,6 +1492,126 @@ class TestPolicyDeleteOrdering:
         with pytest.raises(DocumentNotFoundError):
             delete_policy_document(fake_id, db=db_session)
 
+    def test_chroma_cleanup_warning_is_sanitized_after_sql_commit(
+        self, db_session, monkeypatch
+    ):
+        from server.modules.documents import policies
+
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="adelwarn@lspu.edu.ph",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
+        doc_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="policy",
+            policy_area="data_privacy",
+        )
+        _add_chunk(db_session, document_id=doc_id, source_type="policy")
+        secret = "bucket-secret-token"
+
+        def fail_after_commit(*_args):
+            assert db_session.get(Document, doc_id) is None
+            raise RuntimeError(secret)
+
+        monkeypatch.setattr(
+            "server.modules.embeddings.service.delete_chroma_vectors", fail_after_commit
+        )
+        response = policies.delete_policy_document(doc_id, db=db_session)
+
+        assert response.details["chroma_warning"]
+        assert secret not in str(response.details)
+
+
+class TestRemotePolicySourceHealth:
+    def test_remote_policy_is_healthy_and_retrieval_eligible_without_download(
+        self, db_session, monkeypatch
+    ):
+        from server.core import storage
+        from server.modules.documents import policies
+
+        class FakeStorage:
+            def __init__(self):
+                self.checked = []
+
+            def file_exists(self, key):
+                self.checked.append(key)
+                return key == "r2://policies/remote.pdf"
+
+            def download_file(self, *_args):
+                raise AssertionError("health checks must not download policy PDFs")
+
+        fake = FakeStorage()
+        monkeypatch.setattr(storage, "get_storage_backend", lambda: fake)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="aremotehealth@lspu.edu.ph",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
+        doc_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="policy",
+            policy_area="data_privacy",
+            file_path="r2://policies/remote.pdf",
+        )
+        _add_chunk(db_session, document_id=doc_id, source_type="policy")
+        db_session.query(DocumentChunk).filter(
+            DocumentChunk.document_id == doc_id
+        ).update({DocumentChunk.policy_area: "data_privacy"})
+        db_session.commit()
+        row = db_session.get(Document, doc_id)
+
+        assert policies.is_source_healthy_policy_document(row, db_session)
+        assert policies.is_retrieval_ready_policy_document(row, db_session)
+        assert policies.get_healthy_policy_allowlist(db_session) == {
+            "data_privacy": {str(doc_id)}
+        }
+        monkeypatch.setattr(policies, "check_chroma_availability", lambda *_: True)
+        item = policies.list_policy_documents(db_session).items[0]
+        assert item.file_exists is True
+        assert item.source_healthy is True
+        assert item.embedding_ready is True
+        assert fake.checked
+
+    @pytest.mark.parametrize("outcome", [False, RuntimeError("storage unavailable")])
+    def test_missing_or_unavailable_remote_policy_is_unhealthy(
+        self, db_session, monkeypatch, outcome
+    ):
+        from server.core import storage
+        from server.modules.documents import policies
+
+        class FakeStorage:
+            def file_exists(self, _key):
+                if isinstance(outcome, Exception):
+                    raise outcome
+                return outcome
+
+        monkeypatch.setattr(storage, "get_storage_backend", lambda: FakeStorage())
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email=f"aremote{uuid.uuid4().hex}@lspu.edu.ph",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
+        doc_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="policy",
+            policy_area="data_privacy",
+            file_path="r2://policies/missing.pdf",
+        )
+        _add_chunk(db_session, document_id=doc_id, source_type="policy")
+        assert not policies.is_source_healthy_policy_document(
+            db_session.get(Document, doc_id), db_session
+        )
+
 
 # ── In-memory state cleanup ─────────────────────────────────────────
 

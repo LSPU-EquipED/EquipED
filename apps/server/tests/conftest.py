@@ -26,6 +26,7 @@ from server.core.database import (  # noqa: E402
     get_session_factory,
 )
 from server.core.embedding import get_embedding_model  # noqa: E402
+from server.core.storage import reset_storage_backend_for_tests  # noqa: E402
 from server.db.metadata import import_model_modules  # noqa: E402
 from server.modules.auth.limiter import reset_auth_limiters  # noqa: E402
 from server.modules.auth.models import UserRole  # noqa: E402
@@ -33,9 +34,35 @@ from server.modules.auth.service import create_user  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def isolate_database_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def isolate_database_env(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> Iterator[None]:
     reset_auth_limiters()
     monkeypatch.setenv("DATABASE_URL", "")
+    # load_dotenv() must never select the deployment's live vector database.
+    # Individual configuration tests can override these explicit empty values.
+    for name in (
+        "CHROMA_HOST",
+        "CHROMA_PORT",
+        "CHROMA_SSL",
+        "CHROMA_API_KEY",
+        "CHROMA_TENANT",
+        "CHROMA_DATABASE",
+    ):
+        monkeypatch.setenv(name, "")
+    monkeypatch.setenv("CHROMA_PERSIST_DIRECTORY", str(tmp_path / "chroma"))
+    # Reference cleanup tests must also avoid the deployment's object store.
+    monkeypatch.setenv("STORAGE_BACKEND", "local")
+    for name in (
+        "R2_ACCOUNT_ID",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_BUCKET_NAME",
+        "R2_ENDPOINT_URL",
+        "R2_PUBLIC_URL",
+    ):
+        monkeypatch.setenv(name, "")
+    reset_storage_backend_for_tests()
     get_settings.cache_clear()
     get_engine.cache_clear()
     get_session_factory.cache_clear()
@@ -44,6 +71,7 @@ def isolate_database_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     try:
         yield
     finally:
+        reset_storage_backend_for_tests()
         reset_auth_limiters()
         get_settings.cache_clear()
         get_engine.cache_clear()

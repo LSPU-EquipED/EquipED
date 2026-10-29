@@ -56,11 +56,11 @@ def retrieve_context(
         # changing the public return contract.
         logger.warning(
             "retrieve_context failed; falling back to empty result "
-            "(collection=%s, n_results=%d, document_id_filter=%s): %s",
+            "(collection=%s, n_results=%d, document_id_filter=%s, category=%s)",
             collection_name,
             n_results,
             document_id_filter,
-            exc,
+            type(exc).__name__,
         )
         return []
 
@@ -92,11 +92,11 @@ def retrieve_context_with_embedding(
         # changing the public return contract.
         logger.warning(
             "retrieve_context_with_embedding failed; falling back to empty result "
-            "(collection=%s, n_results=%d, document_id_filter=%s): %s",
+            "(collection=%s, n_results=%d, document_id_filter=%s, category=%s)",
             collection_name,
             n_results,
             document_id_filter,
-            exc,
+            type(exc).__name__,
         )
         return []
 

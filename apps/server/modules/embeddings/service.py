@@ -9,7 +9,7 @@ from chromadb.errors import NotFoundError
 from server.core.chroma import get_chroma_client
 from server.core.embedding import get_embedding_model
 
-from .collections import resolve_collection_name
+from .collections import COL_SLM_ALL, COL_SLM_PREFIX, resolve_collection_name
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +54,9 @@ def embed_and_store_chunks(chunks: list[Any], batch_size: int = 32) -> int:
     Returns number of chunks successfully sent for upsert.
     """
 
+    if batch_size <= 0:
+        raise ValueError("batch_size must be a positive integer")
+
     normalized = [
         _to_embedding_chunk(chunk) for chunk in chunks if getattr(chunk, "text", None)
     ]
@@ -62,47 +65,58 @@ def embed_and_store_chunks(chunks: list[Any], batch_size: int = 32) -> int:
 
     grouped: dict[str, list[EmbeddingChunk]] = {}
     for chunk in normalized:
+        if chunk.source_type == "slm":
+            raise ValueError("SLM chunks must be indexed through build_slm_retrieval")
         collection_name = resolve_collection_name(chunk.source_type)
         grouped.setdefault(collection_name, []).append(chunk)
 
     model = get_embedding_model()
     chroma_client = get_chroma_client()
+    client_max_batch = getattr(chroma_client, "get_max_batch_size", None)
+    effective_batch_size = min(
+        batch_size,
+        client_max_batch() if callable(client_max_batch) else batch_size,
+    )
 
     upserted = 0
     for collection_name, grouped_chunks in grouped.items():
-        collection = chroma_client.get_or_create_collection(collection_name)
-
-        texts = [chunk.text for chunk in grouped_chunks]
-        embeddings = model.encode(
-            texts,
-            batch_size=batch_size,
-            show_progress_bar=False,
-        ).tolist()
-        ids = [chunk.chunk_id for chunk in grouped_chunks]
-        metadatas = [
-            _omit_none(
-                {
-                    "chunk_id": chunk.chunk_id,
-                    "document_id": chunk.document_id,
-                    "source_type": chunk.source_type,
-                    "page_number": chunk.page_number,
-                    "is_ocr": chunk.is_ocr,
-                    "token_count": chunk.token_count,
-                    "policy_area": chunk.policy_area,
-                    "section_ref": chunk.section_ref,
-                    "chunk_index": chunk.chunk_index,
-                }
-            )
-            for chunk in grouped_chunks
-        ]
-
-        collection.upsert(
-            ids=ids,
-            embeddings=embeddings,
-            documents=texts,
-            metadatas=metadatas,
+        collection = chroma_client.get_or_create_collection(
+            collection_name, embedding_function=None
         )
-        upserted += len(grouped_chunks)
+
+        for start in range(0, len(grouped_chunks), effective_batch_size):
+            batch = grouped_chunks[start : start + effective_batch_size]
+            texts = [chunk.text for chunk in batch]
+            embeddings = model.encode(
+                texts,
+                batch_size=batch_size,
+                show_progress_bar=False,
+            ).tolist()
+            ids = [chunk.chunk_id for chunk in batch]
+            metadatas = [
+                _omit_none(
+                    {
+                        "chunk_id": chunk.chunk_id,
+                        "document_id": chunk.document_id,
+                        "source_type": chunk.source_type,
+                        "page_number": chunk.page_number,
+                        "is_ocr": chunk.is_ocr,
+                        "token_count": chunk.token_count,
+                        "policy_area": chunk.policy_area,
+                        "section_ref": chunk.section_ref,
+                        "chunk_index": chunk.chunk_index,
+                    }
+                )
+                for chunk in batch
+            ]
+
+            collection.upsert(
+                ids=ids,
+                embeddings=embeddings,
+                documents=texts,
+                metadatas=metadatas,
+            )
+            upserted += len(batch)
 
     return upserted
 
@@ -114,18 +128,11 @@ def delete_chroma_vectors(document_id: str, source_type: str) -> bool:
     False if the collection does not exist.
     """
     try:
-        collection_name = resolve_collection_name(source_type)
+        resolve_collection_name(source_type)
     except ValueError:
         return False
 
-    try:
-        chroma_client = get_chroma_client()
-        collection = chroma_client.get_collection(collection_name)
-    except Exception:
-        return False
-
-    collection.delete(where={"document_id": {"$eq": document_id}})
-    return True
+    return delete_chroma_vectors_strict(document_id, source_type)
 
 
 def delete_chroma_vectors_strict(document_id: str, source_type: str) -> bool:
@@ -137,8 +144,29 @@ def delete_chroma_vectors_strict(document_id: str, source_type: str) -> bool:
     - Propagates all connection/get/query/delete errors.
     - Deletes scoped vectors and verifies zero remain.
     """
-    collection_name = resolve_collection_name(source_type)
     chroma_client = get_chroma_client()
+
+    if source_type == "slm":
+        collection_names = _slm_collection_names(chroma_client)
+        deleted_any = False
+        for collection_name in collection_names:
+            try:
+                collection = chroma_client.get_collection(collection_name)
+            except NotFoundError:
+                continue
+            collection.delete(where={"document_id": {"$eq": document_id}})
+            remaining = collection.get(
+                where={"document_id": {"$eq": document_id}}, limit=1
+            )
+            if remaining.get("ids"):
+                raise RuntimeError(
+                    f"Chroma vectors remain for document {document_id} in "
+                    f"{collection_name} after deletion."
+                )
+            deleted_any = True
+        return deleted_any
+
+    collection_name = resolve_collection_name(source_type)
 
     try:
         collection = chroma_client.get_collection(collection_name)
@@ -163,12 +191,23 @@ def delete_chroma_vectors_strict(document_id: str, source_type: str) -> bool:
 def check_chroma_availability(document_id: str, source_type: str) -> bool:
     """Return True if at least one vector exists for the given document in Chroma."""
     try:
-        collection_name = resolve_collection_name(source_type)
+        collection_name = (
+            None if source_type == "slm" else resolve_collection_name(source_type)
+        )
     except ValueError:
         return False
 
     try:
         chroma_client = get_chroma_client()
+        if source_type == "slm":
+            for slm_collection_name in _slm_collection_names(chroma_client):
+                collection = chroma_client.get_collection(slm_collection_name)
+                result = collection.get(
+                    where={"document_id": {"$eq": document_id}}, limit=1
+                )
+                if result.get("ids"):
+                    return True
+            return False
         collection = chroma_client.get_collection(collection_name)
     except Exception:
         return False
@@ -181,6 +220,18 @@ def check_chroma_availability(document_id: str, source_type: str) -> bool:
         return len(result.get("ids", [])) > 0
     except Exception:
         return False
+
+
+def _slm_collection_names(chroma_client: Any) -> list[str]:
+    """List only the reserved legacy and model/dimension-specific SLM collections."""
+    names = []
+    for item in chroma_client.list_collections():
+        name = item if isinstance(item, str) else getattr(item, "name", None)
+        if name == COL_SLM_ALL or (
+            isinstance(name, str) and name.startswith(COL_SLM_PREFIX)
+        ):
+            names.append(name)
+    return names
 
 
 __all__ = [

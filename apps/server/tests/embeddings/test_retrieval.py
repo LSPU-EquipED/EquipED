@@ -1,4 +1,4 @@
-"""Tests for embeddings.retrieval module — Chroma delegation and failure observability."""
+"""Chroma retrieval delegation and failure observability tests."""
 
 from __future__ import annotations
 
@@ -38,7 +38,9 @@ def test_retrieve_context_with_embedding_delegates(monkeypatch) -> None:
 
     embedding = [0.1, 0.2, 0.3]
     results = retrieve_context_with_embedding(
-        embedding, "test_collection", n_results=3,
+        embedding,
+        "test_collection",
+        n_results=3,
     )
 
     assert len(results) == 1
@@ -58,12 +60,10 @@ def test_retrieve_context_logs_warning_and_returns_empty_on_failure(
 ) -> None:
     """A retrieval failure should still return [] (Phase 1 contract) but
     emit a warning that includes the collection name for triage."""
-    caplog.set_level(
-        logging.WARNING, logger="server.modules.embeddings.retrieval"
-    )
+    caplog.set_level(logging.WARNING, logger="server.modules.embeddings.retrieval")
 
     def broken_model():
-        raise RuntimeError("embedding model exploded")
+        raise RuntimeError("private-query-and-credential")
 
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.get_embedding_model",
@@ -74,10 +74,11 @@ def test_retrieve_context_logs_warning_and_returns_empty_on_failure(
 
     assert results == []
     assert any(
-        "retrieve_context failed" in r.message
-        and "test_collection" in r.message
+        "retrieve_context failed" in r.message and "test_collection" in r.message
         for r in caplog.records
     ), f"expected retrieval failure warning, got: {[r.message for r in caplog.records]}"
+    assert "category=RuntimeError" in caplog.text
+    assert "private-query-and-credential" not in caplog.text
 
 
 def test_retrieve_context_with_embedding_logs_warning_and_returns_empty(
@@ -85,13 +86,11 @@ def test_retrieve_context_with_embedding_logs_warning_and_returns_empty(
 ) -> None:
     """A pre-embedded retrieval failure should still return [] (Phase 1
     contract) but emit a warning that includes the collection name."""
-    caplog.set_level(
-        logging.WARNING, logger="server.modules.embeddings.retrieval"
-    )
+    caplog.set_level(logging.WARNING, logger="server.modules.embeddings.retrieval")
 
     class FakeChroma:
         def get_collection(self, name):
-            raise RuntimeError("chroma unavailable")
+            raise RuntimeError("private-vector-request")
 
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.get_chroma_client",
@@ -99,7 +98,9 @@ def test_retrieve_context_with_embedding_logs_warning_and_returns_empty(
     )
 
     results = retrieve_context_with_embedding(
-        [0.1, 0.2, 0.3], "test_collection", n_results=3,
+        [0.1, 0.2, 0.3],
+        "test_collection",
+        n_results=3,
     )
 
     assert results == []
@@ -108,3 +109,5 @@ def test_retrieve_context_with_embedding_logs_warning_and_returns_empty(
         and "test_collection" in r.message
         for r in caplog.records
     ), f"expected retrieval failure warning, got: {[r.message for r in caplog.records]}"
+    assert "category=RuntimeError" in caplog.text
+    assert "private-vector-request" not in caplog.text

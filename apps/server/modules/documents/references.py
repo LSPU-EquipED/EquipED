@@ -250,11 +250,14 @@ def delete_reference_document(
     except Exception as exc:
         logger.error(
             "Chroma deletion reported an issue during document cleanup",
-            extra={"document_id": str(document_id), "error": str(exc)},
+            extra={
+                "document_id": str(document_id),
+                "error_category": type(exc).__name__,
+            },
         )
         raise ReferenceDeleteStorageError(
-            f"Failed to delete Chroma vectors for document {document_id}: {exc}"
-        ) from exc
+            "Reference vector cleanup is temporarily unavailable."
+        ) from None
 
     # Step 3: Delete PDF from storage backend and local filesystem
     if row.file_path:

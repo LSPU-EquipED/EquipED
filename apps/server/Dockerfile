@@ -37,7 +37,7 @@ WORKDIR /app/apps
 
 EXPOSE 8000
 
-CMD ["uv", "run", "--project", "server", "uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uv", "run", "--project", "server", "uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "server", "--reload-dir", "../libs/evaluation-harness"]
 
 # Smoke target for local container validation
 FROM dev AS smoke
