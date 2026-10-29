@@ -52,7 +52,7 @@ def is_source_healthy_policy_document(doc: Any, db: Any) -> bool:
     * ``policy_area`` is in the canonical ``VALID_POLICY_AREAS`` set
     * ``processing_status`` is ``"PROCESSED"``
     * At least one ``DocumentChunk`` row exists (regardless of ``chroma_stored``)
-    * The local uploaded PDF file exists on disk (``Path.is_file()``)
+    * The uploaded PDF exists locally or in the configured storage backend
     """
     if doc.source_type != "policy":
         return False
@@ -62,7 +62,7 @@ def is_source_healthy_policy_document(doc: Any, db: Any) -> bool:
         return False
     if not doc.file_path:
         return False
-    if not Path(doc.file_path).is_file():
+    if not _policy_file_exists(doc.file_path):
         return False
     chunk_count = (
         db.query(DocumentChunk)
@@ -72,6 +72,36 @@ def is_source_healthy_policy_document(doc: Any, db: Any) -> bool:
     if chunk_count == 0:
         return False
     return True
+
+
+def _policy_file_exists(file_path: str | None) -> bool:
+    """Check a policy source locally first, then through configured storage.
+
+    Health checks must not download remote PDFs: they only need to establish
+    that a rebuildable source is available.
+    """
+    if not file_path:
+        return False
+    try:
+        if Path(file_path).is_file():
+            return True
+    except (OSError, RuntimeError, TypeError, ValueError):
+        pass
+    # Local documents use ordinary filesystem paths. Only explicit remote
+    # references should make a storage request; this keeps missing local files
+    # from triggering cloud calls during listing and retrieval checks.
+    if not file_path.startswith("r2://"):
+        return False
+    try:
+        from server.core.storage import extract_document_filename, get_storage_backend
+        from server.modules.documents.paths import UPLOAD_ROOT
+
+        filename = extract_document_filename(file_path)
+        if filename and (UPLOAD_ROOT / filename).is_file():
+            return True
+        return bool(get_storage_backend().file_exists(file_path))
+    except Exception:
+        return False
 
 
 def is_retrieval_ready_policy_document(doc: Any, db: Any) -> bool:
@@ -204,7 +234,7 @@ def validate_policy_chunks(
     healthy_doc_ids = set()
     doc_policy_map: dict[uuid.UUID, str | None] = {}
     for doc in healthy_docs:
-        if doc.file_path and Path(doc.file_path).is_file():
+        if _policy_file_exists(doc.file_path):
             healthy_doc_ids.add(doc.document_id)
             doc_policy_map[doc.document_id] = doc.policy_area
 
@@ -259,7 +289,7 @@ def list_policy_documents(db: Any | None = None) -> PolicyLibraryResponse:
             .filter(DocumentChunk.document_id == row.document_id)
             .count()
         )
-        file_exists = Path(row.file_path).is_file() if row.file_path else False
+        file_exists = _policy_file_exists(row.file_path)
         chroma_available = check_chroma_availability(
             str(row.document_id), row.source_type
         )
@@ -338,12 +368,14 @@ def delete_policy_document(
     try:
         deleted_chroma = delete_chroma_vectors(str(document_id), "policy")
         details["chroma_deleted"] = deleted_chroma
-    except Exception as exc:
+    except Exception:
         logger.warning(
-            "Chroma deletion reported an issue during policy cleanup",
-            extra={"document_id": str(document_id)},
+            "Chroma deletion reported an issue during policy cleanup "
+            "(category=cleanup_failure)"
         )
-        details["chroma_warning"] = str(exc)
+        details["chroma_warning"] = (
+            "Vector cleanup failed; retry cleanup if vectors remain."
+        )
 
     if file_path_backup:
         pdf_path = Path(file_path_backup)

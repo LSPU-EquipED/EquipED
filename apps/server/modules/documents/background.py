@@ -75,13 +75,12 @@ def _finalize_ingestion_failure(
         try:
             delete_chroma_vectors_strict(str(document_id), source_type)
         except Exception as cleanup_exc:
-            logger.exception(
+            logger.error(
                 f"Failed to verify Chroma vector cleanup on {log_context}",
                 extra={
                     "document_id": str(document_id),
                     "source_type": source_type,
                     "exception_class": cleanup_exc.__class__.__name__,
-                    "exception_message": str(cleanup_exc),
                 },
             )
             chroma_cleanup_ok = False
@@ -262,7 +261,8 @@ def process_document_ingestion(document_id: uuid.UUID) -> None:
             (chunk.page_number for chunk in chunk_data), default=0
         )
         document.has_ocr_pages = any(chunk.is_ocr for chunk in chunk_data)
-        document.processing_status = "PROCESSED"
+        # Keep the document nonterminal until the vector upsert completes.
+        document.processing_status = "PROCESSING"
         document.processing_warnings = None
         session.commit()
     except Exception:
@@ -294,15 +294,78 @@ def process_document_ingestion(document_id: uuid.UUID) -> None:
     finally:
         session.close()
 
-    # Phase 4 — embed into Chroma (opens its own short-lived session internally).
+    # Phase 4 — embedding owns its session; reopen this worker's session afterward.
     try:
         embed_document_chunks(document_id)
-    except Exception:
-        logger.warning(
-            "Embedding failed after background ingestion",
-            extra={"document_id": str(document_id)},
-            exc_info=True,
+    except Exception as exc:
+        logger.error(
+            "Background ingestion embedding failed",
+            extra={
+                "document_id": str(document_id),
+                "exception_class": exc.__class__.__name__,
+            },
         )
+        session = session_factory()
+        try:
+            _finalize_ingestion_failure(
+                session,
+                document_id=document_id,
+                source_type=source_type,
+                file_path=file_path,
+                # Embedding can partially write on its first call.
+                had_prior_embedded_state=True,
+                warning_message=(
+                    "The document could not be embedded due to an unexpected error."
+                ),
+                log_context="embedding failure",
+            )
+        except Exception:
+            session.rollback()
+            logger.error(
+                "Failed to finalize document after embedding error",
+                extra={"document_id": str(document_id)},
+            )
+        finally:
+            session.close()
+        return
+
+    session = session_factory()
+    try:
+        document = session.get(Document, document_id)
+        if document is None:
+            return
+        document.processing_status = "PROCESSED"
+        document.processing_warnings = None
+        session.commit()
+    except Exception as exc:
+        session.rollback()
+        logger.error(
+            "Background ingestion failed to commit terminal status",
+            extra={
+                "document_id": str(document_id),
+                "exception_class": exc.__class__.__name__,
+            },
+        )
+        try:
+            _finalize_ingestion_failure(
+                session,
+                document_id=document_id,
+                source_type=source_type,
+                file_path=file_path,
+                had_prior_embedded_state=True,
+                warning_message=(
+                    "The document could not be processed due to an unexpected error."
+                ),
+                log_context="terminal status commit failure",
+            )
+        except Exception:
+            session.rollback()
+            logger.error(
+                "Failed to finalize document after terminal status error",
+                extra={"document_id": str(document_id)},
+            )
+    finally:
+        session.close()
 
 
 __all__ = ["process_document_ingestion"]

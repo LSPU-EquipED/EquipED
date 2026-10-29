@@ -5,7 +5,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from server.core import chroma
 from server.core.config import _REPO_ROOT, Settings, _resolve_chroma_path, get_settings
 from server.core.exceptions import ConfigurationError, InfrastructureUnavailableError
@@ -50,6 +49,21 @@ def test_settings_chroma_default_is_repo_root_path(monkeypatch) -> None:
     settings = Settings()
     expected = str(_REPO_ROOT / "chroma_data")
     assert settings.chroma_persist_directory == expected
+
+
+def test_default_test_client_cannot_select_deployment_cloud(monkeypatch, tmp_path):
+    captured = []
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "chromadb",
+        SimpleNamespace(
+            CloudClient=lambda **kwargs: pytest.fail("live cloud selected by test"),
+            HttpClient=lambda **kwargs: pytest.fail("remote server selected by test"),
+            PersistentClient=lambda **kwargs: captured.append(kwargs) or "isolated",
+        ),
+    )
+    assert chroma.get_chroma_client() == "isolated"
+    assert captured == [{"path": str(tmp_path / "chroma")}]
 
 
 def test_settings_chroma_env_var_resolves_relative(monkeypatch) -> None:

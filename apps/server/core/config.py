@@ -143,6 +143,7 @@ class Settings:
     # alongside the bounded prompt payload.
     llm_max_new_tokens: int = 4096
     llm_request_timeout_seconds: int = 120
+    coordinator_run_timeout_seconds: int = 600
     llm_readiness_timeout_seconds: float = 15.0
     evaluation_heartbeat_stale_seconds: int = 300
     llm_response_mode: str = "json_object"
@@ -361,6 +362,19 @@ def get_settings() -> Settings:
         raise ConfigurationError("LLM_REQUEST_TIMEOUT_SECONDS must be at least 1")
     if parsed_llm_request_timeout_seconds > 3600:
         raise ConfigurationError("LLM_REQUEST_TIMEOUT_SECONDS cannot exceed 3600")
+
+    try:
+        coordinator_run_timeout_seconds = int(
+            _env("COORDINATOR_RUN_TIMEOUT_SECONDS", "600") or "600"
+        )
+    except ValueError as exc:
+        raise ConfigurationError(
+            "COORDINATOR_RUN_TIMEOUT_SECONDS must be a valid integer"
+        ) from exc
+    if not 1 <= coordinator_run_timeout_seconds <= 3600:
+        raise ConfigurationError(
+            "COORDINATOR_RUN_TIMEOUT_SECONDS must be between 1 and 3600"
+        )
 
     agent_max_chunks = _env("AGENT_MAX_CHUNKS", "12")
     try:
@@ -604,6 +618,7 @@ def get_settings() -> Settings:
         llm_temperature_itso=parsed_llm_temperature_itso,
         llm_max_new_tokens=parsed_llm_max_new_tokens,
         llm_request_timeout_seconds=parsed_llm_request_timeout_seconds,
+        coordinator_run_timeout_seconds=coordinator_run_timeout_seconds,
         llm_readiness_timeout_seconds=float(
             _env("LLM_READINESS_TIMEOUT_SECONDS", "15.0") or "15.0"
         ),

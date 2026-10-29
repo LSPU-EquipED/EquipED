@@ -15,7 +15,7 @@ from server.modules.documents.curriculum_readiness import (
 from server.modules.documents.exceptions import ExtractionFailedError
 from server.modules.documents.ingestion.curriculum import filter_curriculum_pages
 from server.modules.documents.ingestion.pipeline import ExtractedPage
-from server.modules.documents.models import Document, DocumentChunk
+from server.modules.documents.models import Document, DocumentChunk, UserDocument
 
 _TEST_PASSWORD = "Password123!"
 
@@ -761,6 +761,70 @@ class TestCurriculumSuggestionEndpoint:
             f"/api/v1/documents/{slm_id}/curriculum-suggestion?program=INVALID_PROG"
         )
         assert resp.status_code == 422
+
+    def test_linked_user_can_read_suggestion_and_is_validated(self, client, db_session):
+        uploader = create_user(
+            db_session,
+            name="Uploader",
+            email="uploader@lspu.edu.ph",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
+        linked_user = create_user(
+            db_session,
+            name="Linked Faculty",
+            email="linked@lspu.edu.ph",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="admin@lspu.edu.ph",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
+        db_session.commit()
+
+        slm_id = _add_doc(
+            db_session,
+            owner_id=uploader.user_id,
+            source_type="slm",
+            title="Linked SLM",
+            program="BSCS",
+        )
+        db_session.add(UserDocument(user_id=linked_user.user_id, document_id=slm_id))
+        curriculum_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="curriculum",
+            title="Ready BSCS Curriculum",
+            program="BSCS",
+        )
+        _add_chunk(db_session, document_id=curriculum_id)
+        db_session.commit()
+
+        _login(client, linked_user.email)
+        linked_document = client.get(f"/api/v1/documents/{slm_id}")
+        assert linked_document.status_code == 200
+
+        with patch(
+            "server.modules.documents.curriculum_readiness.check_chroma_availability",
+            return_value=True,
+        ):
+            response = client.get(
+                f"/api/v1/documents/{slm_id}/curriculum-suggestion?program=BSCS"
+            )
+        assert response.status_code == 200
+        assert response.json()["document_id"] == str(slm_id)
+        assert str(curriculum_id) in {
+            item["document_id"] for item in response.json()["curriculum_suggestions"]
+        }
+
+        invalid_program = client.get(
+            f"/api/v1/documents/{slm_id}/curriculum-suggestion?program=INVALID"
+        )
+        assert invalid_program.status_code == 422
 
     def test_suggestion_returns_ready_and_unavailable_lists(self, client, db_session):
         admin = create_user(

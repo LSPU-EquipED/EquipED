@@ -24,7 +24,12 @@ from server.modules.auth.service import AuthenticatedUser
 from sqlalchemy import func
 
 from . import persistence
-from .access import get_document, list_documents, stream_document_file
+from .access import (
+    _is_document_accessible,
+    get_document,
+    list_documents,
+    stream_document_file,
+)
 from .curriculum_readiness import check_curriculum_readiness
 from .exceptions import (
     DocumentNotFoundError,
@@ -367,7 +372,16 @@ def get_curriculum_suggestion(
     else:
         doc = persistence._MEM_DOCUMENTS.get(document_id)
 
-    if doc is None or doc.source_type != "slm" or doc.uploaded_by != _current_user.id:
+    if (
+        doc is None
+        or doc.source_type != "slm"
+        or not _is_document_accessible(
+            doc,
+            _current_user.id,
+            _current_user.role.value,
+            db=db,
+        )
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Document {document_id} not found",
