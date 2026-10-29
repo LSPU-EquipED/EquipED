@@ -13,6 +13,10 @@ from .authoring import (
     update_criterion,
     update_domain,
 )
+from .coordinator_upgrade import (
+    CoordinatorHarnessUpgradeResult,
+    upgrade_coordinator_harness,
+)
 from .itso_upgrade import ItsoHarnessUpgradeResult, upgrade_itso_harness
 from .reset import (
     COORDINATOR_AGENT_ID,
@@ -44,6 +48,7 @@ __all__ = [
     "_UNSET",
     "_get_active_rubric_set",
     "COORDINATOR_AGENT_ID",
+    "CoordinatorHarnessUpgradeResult",
     "CoordinatorRubricResetReport",
     "FRESH_V1_DRAFT_CONFIRMATION",
     "ItsoHarnessUpgradeResult",
@@ -69,6 +74,7 @@ __all__ = [
     "update_criterion",
     "update_domain",
     "upgrade_itso_harness",
+    "upgrade_coordinator_harness",
     "validate_draft_revision",
     "_lock_parent_draft_rubric_set",
 ]

@@ -7,8 +7,6 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import inspect
-
 from server.modules.auth.models import UserRole
 from server.modules.documents import persistence
 from server.modules.documents.curriculum_readiness import check_curriculum_readiness
@@ -27,6 +25,7 @@ from server.modules.evaluations.schemas import (
     EvaluationResponse,
     EvaluationSubmitRequest,
 )
+from sqlalchemy import inspect
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +107,6 @@ def create_evaluation(
                 ReferenceToolsUnavailable,
                 ensure_public_reference_tools_ready,
             )
-
             from server.core.config import get_settings
             from server.modules.evaluations.harness_adapter import (
                 tool_config_from_settings,
@@ -129,6 +127,15 @@ def create_evaluation(
     partial_reason: str | None = None
 
     if target_agent == "coordinator":
+        from sqlalchemy.orm import Session
+
+        if isinstance(db, Session):
+            from server.modules.rubrics import get_active_rubric_adapter_version
+
+            if get_active_rubric_adapter_version(db, "coordinator", lock=True) != 4:
+                raise EvaluationPipelineUnavailableError(
+                    "Coordinator rubric upgrade is required before evaluation."
+                )
         if req.curriculum_id is None:
             raise InvalidEvaluationTargetError(
                 "Curriculum context is required for Program Coordinator evaluation."

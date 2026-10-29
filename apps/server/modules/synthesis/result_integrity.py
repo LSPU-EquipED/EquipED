@@ -9,7 +9,10 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from equiped_harness.agents.coordinator.contracts import CoordinatorAlignmentAdvisory
+from equiped_harness.agents.coordinator.contracts import (
+    CoordinatorAlignmentAdvisory,
+    CoordinatorAlignmentJudgment,
+)
 from equiped_harness.agents.coordinator.validation import (
     validate_coordinator_coverage,
     validate_current_coordinator_bundle,
@@ -24,9 +27,9 @@ from equiped_harness.contracts.results import (
     CriterionScore as InputCriterionScore,
 )
 from equiped_harness.contracts.snapshots import EvaluationFormSnapshotDTO
+from equiped_harness.exceptions import AgentExecutionError
 from equiped_harness.provenance import sanitize_provenance
 from equiped_harness.runtime.scoring import validate_score_band
-
 from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
 
 ERROR_MESSAGE_PATTERN = re.compile(
@@ -54,6 +57,31 @@ MAX_PROVENANCE_BYTES = 64 * 1024
 MAX_JSON_DEPTH = 8
 MAX_ENVELOPE_STATUS_BYTES = 16 * 1024
 _VALID_ENVELOPE_STATUSES = frozenset({"ok", "repaired", "fallback"})
+_COORDINATOR_CURRENT_CONTRACTS = frozenset(
+    {
+        "coordinator_current.v1",
+        "coordinator_current.v2",
+        "coordinator_current.v3",
+        "coordinator_current.v4",
+        "coordinator_current.v5",
+        "coordinator_current.v6",
+    }
+)
+
+
+def coordinator_current_contract(bundle: Any) -> str:
+    """Resolve persisted Coordinator bundle version; unmarked bundles are v1."""
+    if not isinstance(bundle, dict):
+        raise EvaluationResultIntegrityError("Invalid Coordinator current bundle")
+    if "contract" not in bundle and "explanations" in bundle:
+        raise EvaluationResultIntegrityError(
+            "Coordinator v2 bundle is missing its contract marker"
+        )
+    contract = bundle.get("contract", "coordinator_current.v1")
+    if not isinstance(contract, str) or contract not in _COORDINATOR_CURRENT_CONTRACTS:
+        raise EvaluationResultIntegrityError("Unknown Coordinator execution contract")
+    return contract
+
 
 # Agents whose evidence-grounding can legitimately fail per-criterion and
 # degrade to an advisory flag instead of failing the whole evaluation.
@@ -195,7 +223,12 @@ class PersistableAgentResult:
     envelope_status_json: str | None
     provenance_json: str | None
     advisory_outputs_json: str | None
-    advisory_output_dto: AdvisoryOutput | CoordinatorAlignmentAdvisory | None
+    advisory_output_dto: (
+        AdvisoryOutput
+        | CoordinatorAlignmentAdvisory
+        | CoordinatorAlignmentJudgment
+        | None
+    )
     criterion_scores: tuple[PersistableCriterionScore, ...]
     generations: tuple[CapturedGeneration, ...] = ()
 
@@ -203,6 +236,8 @@ class PersistableAgentResult:
 def build_persistable_agent_result(
     result: AgentEvaluationResult,
     snapshot: EvaluationFormSnapshotDTO,
+    *,
+    persisted_read: bool = False,
 ) -> PersistableAgentResult:
     """Validate and build an immutable persistable result envelope."""
     if not isinstance(result, AgentEvaluationResult):
@@ -392,28 +427,109 @@ def build_persistable_agent_result(
     coordinator_v3 = (
         result.agent_name == "coordinator" and snapshot.adapter_version == 3
     )
+    coordinator_v4 = (
+        result.agent_name == "coordinator" and snapshot.adapter_version == 4
+    )
     scored_advisory = isinstance(result.advisory_outputs, CoordinatorAlignmentAdvisory)
+    judgment_advisory = isinstance(
+        result.advisory_outputs, CoordinatorAlignmentJudgment
+    )
     if coordinator_v3:
         if not scored_advisory:
             raise EvaluationResultIntegrityError(
                 "Coordinator v3 requires scored curriculum advisory"
             )
         try:
-            if (
-                isinstance(result.metadata, dict)
-                and result.metadata.get("execution_contract")
-                == "coordinator_current.v1"
-            ):
-                validate_current_coordinator_bundle(result)
+            execution_contract = (
+                result.metadata.get("execution_contract")
+                if isinstance(result.metadata, dict)
+                else None
+            )
+            group_responses = result.metadata.get("group_responses") or {}
+            persisted_bundle = (
+                group_responses.get("__current_bundle__")
+                if isinstance(group_responses, dict)
+                else None
+            )
+            bundle = result.metadata.get("current_bundle")
+            if execution_contract in _COORDINATOR_CURRENT_CONTRACTS:
+                if not isinstance(bundle, dict):
+                    raise ValueError("current Coordinator bundle is missing")
+                bundle_contract = coordinator_current_contract(bundle)
+                persisted_contract = coordinator_current_contract(persisted_bundle)
+                if (
+                    bundle != persisted_bundle
+                    or bundle_contract != execution_contract
+                    or persisted_contract != execution_contract
+                ):
+                    raise ValueError("current Coordinator contract markers mismatch")
+                if (
+                    execution_contract == "coordinator_current.v5"
+                    and not persisted_read
+                    and not result.generations
+                ):
+                    raise ValueError("New Coordinator results require model captures")
+                validate_current_coordinator_bundle(result, snapshot)
+            elif execution_contract is not None:
+                raise ValueError("unknown Coordinator execution contract")
             else:
                 validate_coordinator_coverage(result)
-        except (ValueError, TypeError, AttributeError, KeyError, StopIteration) as exc:
+        except (
+            ValueError,
+            TypeError,
+            AttributeError,
+            KeyError,
+            StopIteration,
+            AgentExecutionError,
+        ) as exc:
             raise EvaluationResultIntegrityError(
                 "Invalid Coordinator coverage/advisory payload"
             ) from exc
-    elif scored_advisory or (
-        result.agent_name not in ADVISORY_CAPABLE_AGENTS
-        and result.advisory_outputs is not None
+    elif coordinator_v4:
+        if not judgment_advisory:
+            raise EvaluationResultIntegrityError(
+                "Coordinator v4 requires alignment judgment"
+            )
+        try:
+            execution_contract = result.metadata.get("execution_contract")
+            bundle = result.metadata.get("current_bundle")
+            persisted_bundle = (result.metadata.get("group_responses") or {}).get(
+                "__current_bundle__"
+            )
+            if execution_contract != "coordinator_current.v6" or not isinstance(
+                bundle, dict
+            ):
+                raise ValueError("Coordinator v4 requires current v6 bundle")
+            if (
+                bundle != persisted_bundle
+                or coordinator_current_contract(bundle) != execution_contract
+            ):
+                raise ValueError("Coordinator v6 contract markers mismatch")
+            if not persisted_read and len(result.generations) != 3:
+                raise ValueError(
+                    "New Coordinator v6 results require three model captures"
+                )
+            from equiped_harness.agents.coordinator.pipeline import validate_result
+
+            validate_result(result, snapshot)
+        except (
+            ValueError,
+            TypeError,
+            AttributeError,
+            KeyError,
+            StopIteration,
+            AgentExecutionError,
+        ) as exc:
+            raise EvaluationResultIntegrityError(
+                "Invalid Coordinator v6 result"
+            ) from exc
+    elif (
+        scored_advisory
+        or judgment_advisory
+        or (
+            result.agent_name not in ADVISORY_CAPABLE_AGENTS
+            and result.advisory_outputs is not None
+        )
     ):
         raise EvaluationResultIntegrityError("Agent does not support advisory_outputs")
 
@@ -444,7 +560,7 @@ def build_persistable_agent_result(
         adv_json = _serialize_bounded_json(
             adv_dto.to_dict(), MAX_GROUP_PAYLOAD_BYTES, "advisory_outputs"
         )
-    elif coordinator_v3:
+    elif coordinator_v3 or coordinator_v4:
         adv_dto = result.advisory_outputs
         adv_json = _serialize_bounded_json(
             adv_dto.to_dict(), MAX_GROUP_PAYLOAD_BYTES, "advisory_outputs"
@@ -639,7 +755,14 @@ def build_persistable_agent_result(
                 "criterion_ids must be a non-empty tuple of non-empty strings"
             )
         for cid in gen.criterion_ids:
-            if cid not in snapshot.criterion_codes_set:
+            is_v6_alignment_advisory = (
+                coordinator_v4
+                and result.metadata.get("execution_contract")
+                == "coordinator_current.v6"
+                and gen.unit_key == "alignment"
+                and cid == "C-01"
+            )
+            if cid not in snapshot.criterion_codes_set and not is_v6_alignment_advisory:
                 raise EvaluationResultIntegrityError(
                     f"Unknown criterion_id '{cid}' in captured generation"
                 )
