@@ -26,3 +26,22 @@ it('keeps the advisory score and every matched/unmatched objective separate', ()
   expect(screen.getByText(/Not matched to curriculum/)).toBeTruthy();
   expect(screen.getByText(/Unsupported claim rejected/)).toBeTruthy();
 });
+
+it('shows qualitative source evidence without inventing objective counts', () => {
+  render(<CurriculumAlignmentSupplement advisory={{
+    contract: 'coordinator_alignment.v2', criterion_id: 'C-01',
+    criterion_title: 'Curriculum Alignment', advisory_only: true,
+    score: 3, justification: 'The reviewed lesson and curriculum address the same concept.',
+    objective_matches: [],
+    evidence: [
+      { source: 'slm', excerpt: 'Explain how people interpret interface feedback.' },
+      { source: 'curriculum', excerpt: 'Apply human-computer interaction principles.' },
+    ],
+  }} />);
+  expect(screen.getByText('Source evidence (2)')).toBeTruthy();
+  expect(screen.getByText('SLM evidence')).toBeTruthy();
+  expect(screen.getByText('Curriculum evidence')).toBeTruthy();
+  expect(screen.getByText('Explain how people interpret interface feedback.')).toBeTruthy();
+  expect(screen.queryByText(/Objective evidence/)).toBeNull();
+  expect(screen.queryByText(/Matched to curriculum/)).toBeNull();
+});

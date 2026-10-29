@@ -212,7 +212,7 @@ A persistent record of:
 | FR-07 | The system shall evaluate an SLM against the Program Coordinator rubric criteria using its ready authoritative curriculum context; standalone syllabus-to-SLM alignment is a separate non-scoring workflow | D-01, D-02 | High |
 | FR-08 | The system shall evaluate each submitted SLM against the GAD Unit rubric criteria for Inclusivity & Gender Sensitivity | D-01, D-02 | High |
 | FR-09 | The system shall evaluate each submitted SLM against the ITSO rubric criteria for IP compliance and Data Privacy | D-01, D-02 | High |
-| FR-10 | Evaluation feedback shall be grounded in the directly processed SLM and applicable institutional references; SLMs are not embedded in vector storage, and specialists only retrieve the reference types relevant to their domain | D-02, D-03 | High |
+| FR-10 | Evaluation feedback shall be grounded in the processed SLM and applicable institutional references. Current Coordinator adapter 4 uses document-scoped bounded SLM retrieval, authoritative curriculum passages and grouped LLM rubric judgments with attached original evidence. All findings and summary must validate after one bounded repair or the full evaluation fails; no partial reasoning result is successful. Historical Coordinator versions retain their saved contracts. Specialists only retrieve institutional reference types relevant to their domain | D-02, D-03 | High |
 | FR-11 | The system shall assess the sequential flow, logical organization, and instructional coherence of SLM content as part of the SME evaluation | D-01, D-02 | Medium |
 
 ### 6.3 Scoring & Report Generation
@@ -253,7 +253,7 @@ A persistent record of:
 | NFR-01 | **Accuracy.** The system shall achieve evaluation agreement with human experts of at least 90% on precision, recall, and accuracy metrics, validated against expert-reviewed SLMs from the LSPU SCC corpus. | High |
 | NFR-02 | **Language Support.** The system shall correctly process SLM content written in English and Filipino. Content in other languages is out of scope and may produce inaccurate outputs. | High |
 | NFR-03 | **Data Privacy.** All institutional documents processed by the system shall be handled in compliance with RA 10173 (Data Privacy Act of 2012). Personally identifiable information in uploaded documents shall be anonymized prior to processing. | High |
-| NFR-04 | **Data Residency.** Embedding runs on institutional infrastructure. Vector storage is local/private by default; explicitly authorized Chroma Cloud may hold institutional reference, rubric and policy vectors with their existing text and metadata. Cloud configuration does not authorize external inference or SLM vector indexing. Policy delivery retains its private-model gate and document access remains ownership-scoped. `[TBD: backend data handling policy required]` | High |
+| NFR-04 | **Data Residency.** Embedding runs on institutional infrastructure. Vector storage is local/private by default; explicitly authorized Chroma Cloud may hold institutional reference, rubric, policy and document-scoped SLM vectors with their text and metadata. SLM indexing supports Coordinator evidence preparation and never retrieves another module as evaluation evidence. Cloud configuration does not authorize external inference. Policy delivery retains its private-model gate and document access remains ownership-scoped. `[TBD: backend data handling policy required]` | High |
 | NFR-05 | **Human Oversight.** System-generated evaluation outputs are advisory only. All outputs are subject to human evaluator review and shall not constitute official CID evaluation decisions without explicit evaluator confirmation. | High |
 | NFR-06 | **Processing Time.** The system shall complete evaluation of a standard SLM (20–40 pages) within a processing window acceptable for institutional workflows. `[TBD: target to be defined upon prototype benchmarking]` | Medium |
 | NFR-07 | **Maintainability.** Rubric content, agent evaluation prompts, and document preprocessing configurations shall be independently updatable without requiring full system redeployment. | Medium |
@@ -312,16 +312,9 @@ Administrators can add/edit structured curriculum objectives and replace existin
 
 The backend uses each specialist's mean criterion score on the 1–4 scale. The completed document matrix combines SME (35%), Coordinator (30%), GAD (20%), and ITSO (15%); it withholds the composite until all four domains complete. These generated results remain advisory, not institutional certification.
 
-Coordinator adapter v3 restores official A-05 Objective Gauging and retains C-01 Curriculum Alignment as a separately scored advisory supplement, excluded from the ten-criterion mean, composite, and institutional PDF. Curriculum remains required. V3 fails ambiguous source objective inventories rather than accepting a model-selected denominator. Existing contracts and historical meanings remain unchanged; the default is still v2 pending an explicitly approved new rubric revision and activation. See the [v3 specification](docs/superpowers/specs/2026-10-05-coordinator-objective-gauging-advisory-alignment.md).
+Coordinator adapter 4 uses `coordinator_current.v6` with ten LLM-scored rubric criteria and qualitative C-01 alignment as a separate 1–4 advisory supplement grounded in SLM and curriculum passages. C-01 has no objective count or denominator and remains excluded from the official mean, composite, and institutional PDF. Adapter 4 uses explicit immutable snapshots; the production manifest default remains v2 for legacy callers. Historical v1–v5 results preserve their original meaning and remain readable. Only adapter 4 executes Coordinator evaluations; retired snapshots require a new evaluation.
 
-Current Coordinator execution keeps source-verified objectives frozen before scoring.
-For unfamiliar readable layouts, the assigned model classifies every source line
-under a bounded schema and a separate verification pass; the harness constructs
-exact source spans and objective IDs. Unresolved disagreement or unreadable,
-missing or truncated objectives remains a failure. Scoring calls cannot choose a
-smaller denominator. Historical snapshot contracts and rubric activation remain
-unchanged; this is source preparation within Layer 3, not an additional layer.
-
+Current Coordinator execution does not construct an exhaustive objective inventory or denominator. It ranks bounded exact SLM and curriculum passages and requires complete reasoning, evidence, and summary in each native group; failure after one bounded repair fails the evaluation without partial success. Earlier source-inventory and verification behavior belongs to historical Coordinator versions.
 
 ---
 

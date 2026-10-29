@@ -11,7 +11,7 @@
 - EquipED evaluates LSPU SCC SLMs against institutional reference documents and rubrics.
 - Human review is authoritative; generated evaluations and recommendations are advisory only.
 - Data privacy, local data residency, and strict ownership scoping are core invariants. External data sharing is prohibited unless explicitly configured.
-- SLMs are direct evaluation input and are never embedded into vector storage.
+- SLMs remain the authoritative evaluation input. Coordinator may use document-scoped SLM embeddings in the configured vector store to rank bounded evidence packets. The current Coordinator path uses bounded, rubric-guided LLM judgments and exact selected passages; other specialists retain their existing input preparation. Historical Coordinator contracts may retain complete-coverage checks.
 - Partial completion is permitted only for explicit intentional partial workflows, such as acknowledged no-curriculum intent; unhandled failures in full or partial evaluations remain failed.
 
 ## Stable Architecture
