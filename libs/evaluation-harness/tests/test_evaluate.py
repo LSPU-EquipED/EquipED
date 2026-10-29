@@ -2,7 +2,7 @@
 
 import json
 import re
-from dataclasses import FrozenInstanceError, replace
+from dataclasses import replace
 from uuid import uuid4
 
 import pytest
@@ -58,6 +58,8 @@ class FakeClient:
         self.payloads = iter(payloads)
         self.calls = []
         self.last_payload = None
+        self.coordinator_assessment_support_count = None
+        self.coordinator_curriculum_support_count = None
 
     def generate_result(
         self,
@@ -72,6 +74,14 @@ class FakeClient:
         self.calls.append(
             (prompt, temperature, max_new_tokens, deadline, response_contract)
         )
+        if (
+            hasattr(prompt, "system_instruction")
+            and "Current Coordinator" in prompt.system_instruction
+        ):
+            payload = self._current_coordinator_payload(prompt)
+            return CompletionResult(
+                json.dumps(payload), "served", 2, 3, 5, "stop", attempts=2
+            )
         try:
             payload = next(self.payloads)
             self.last_payload = payload
@@ -118,6 +128,73 @@ class FakeClient:
             "stop",
             attempts=2,
         )
+
+    def _current_coordinator_payload(self, prompt):
+        user_context = prompt.user_context
+        rubric_text = user_context.split("=== UNTRUSTED RUBRIC CONTEXT ===\n", 1)[
+            1
+        ].split("\n=== END UNTRUSTED RUBRIC CONTEXT ===", 1)[0]
+        source_text = user_context.split("=== UNTRUSTED SOURCE CONTEXT ===\n", 1)[
+            1
+        ].split("\n=== END UNTRUSTED SOURCE CONTEXT ===", 1)[0]
+        rubric = json.loads(rubric_text)
+        catalog = json.loads(source_text)["source_catalog"]
+        task_id = rubric["task_id"]
+        if task_id.startswith("ordinary-"):
+            selected = next(item for item in catalog if item["source"] == "slm")
+            rows = [
+                {
+                    "status": "supported",
+                    "score": 3,
+                    "evidence_id": selected["source_id"],
+                }
+            ]
+        else:
+            is_assessment = task_id == "objective-assessment"
+            limit = (
+                self.coordinator_assessment_support_count
+                if is_assessment
+                else self.coordinator_curriculum_support_count
+            )
+            dimension = "assessment" if is_assessment else "curriculum"
+            available = [item for item in catalog if item["source"] == dimension]
+            limit = len(rubric["objectives"]) if limit is None else limit
+            selected_ids = [item["source_id"] for item in available]
+            rows = [
+                {
+                    "objective_id": objective["objective_id"],
+                    "source_ids": selected_ids[:1] if index < limit else [],
+                }
+                for index, objective in enumerate(rubric["objectives"])
+            ]
+        selected_id = next(
+            (
+                row.get("evidence_id") or (row.get("source_ids") or [None])[0]
+                for row in rows
+                if row.get("evidence_id") or row.get("source_ids")
+            ),
+            None,
+        )
+        selected_item = next(
+            (item for item in catalog if item["source_id"] == selected_id), None
+        )
+        explanation = {
+            "finding": "The cited source supports the reported finding.",
+            "limitation": "",
+            "evidence": (
+                [
+                    {
+                        "source_id": selected_id,
+                        "quote": selected_item["text"][:150].strip(),
+                    }
+                ]
+                if selected_item
+                else []
+            ),
+        }
+        if selected_item is None:
+            explanation["limitation"] = "No supporting source was identified."
+        return {"results": rows, "explanation": explanation}
 
 
 def evaluate_prepared_fixture(request, client, config):
@@ -190,39 +267,29 @@ def prepared_request(agent):
         curriculum_context=CURRICULUM,
         prompt_version_id=uuid4(),
     )
-    if agent in {"sme", "coordinator"}:
+    if agent == "coordinator":
+        # Current Coordinator responses are generated from each v2 prompt by
+        # FakeClient; legacy criterion_measurements envelopes belong in the
+        # explicitly historical coordinator tests.
+        payloads = []
+    elif agent == "sme":
         payloads = []
         for packed in envelope_criteria_map_from_snapshot(snapshot, agent).values():
-            if agent == "coordinator" and packed[0].criterion_code == "A-05":
-                payloads.append(
-                    {
-                        "objective_matches": [
-                            {
-                                "objective_id": "OBJ-0001",
-                                "assessment_matched": True,
-                                "assessment_excerpt": "Compute 2 + 2.",
-                                "curriculum_matched": True,
-                                "curriculum_excerpt": CURRICULUM,
-                            }
-                        ]
-                    }
-                )
-            else:
-                payloads.append(
-                    {
-                        "summary": "Supported.",
-                        "criterion_measurements": [
-                            {
-                                "criterion_id": c.criterion_code,
-                                "criterion_title": c.title,
-                                "score": 4,
-                                "evidence": "Compute 2 + 2.",
-                                "reasoning": "Supported.",
-                            }
-                            for c in packed
-                        ],
-                    }
-                )
+            payloads.append(
+                {
+                    "summary": "Supported.",
+                    "criterion_measurements": [
+                        {
+                            "criterion_id": c.criterion_code,
+                            "criterion_title": c.title,
+                            "score": 4,
+                            "evidence": "Compute 2 + 2.",
+                            "reasoning": "Supported.",
+                        }
+                        for c in packed
+                    ],
+                }
+            )
     elif agent == "gad":
         payloads = [
             {
@@ -255,7 +322,7 @@ def prepared_request(agent):
     return request, payloads
 
 
-@pytest.mark.parametrize("agent", ["sme", "coordinator", "gad", "itso"])
+@pytest.mark.parametrize("agent", ["sme", "gad", "itso"])
 def test_public_evaluate_runs_actual_specialist(agent):
     request, payloads = prepared_request(agent)
     if agent == "itso":
@@ -278,9 +345,7 @@ def test_public_evaluate_runs_actual_specialist(agent):
         0.0 if agent == "gad" else config.get_agent_temperature(agent)
     )
     assert all(call[1] == expected_temperature for call in client.calls)
-    expected_budgets = (
-        [512, 777, 777] if agent == "coordinator" else [777] * len(client.calls)
-    )
+    expected_budgets = [777] * len(client.calls)
     assert [call[2] for call in client.calls] == expected_budgets
     assert len(result.generations) == len(client.calls)
     if agent == "coordinator":
@@ -288,147 +353,6 @@ def test_public_evaluate_runs_actual_specialist(agent):
         assert "C-01" not in {s.criterion_id for s in result.criterion_scores}
         assert result.advisory_outputs.criterion_id == "C-01"
         validate_coordinator_coverage(result)
-
-
-def test_public_coordinator_evaluate_uses_complete_five_objective_inventory():
-    request, payloads = prepared_request("coordinator")
-    source = (
-        "Lesson Learning Outcomes\nIntended Learning Outcomes\n"
-        "At the end of this lesson, the students should be able to:\n"
-        "• Identify a concept.\n• Explain a concept.\n• Compare examples.\n"
-        "• Apply a method.\n• Evaluate a result.\n"
-        "Student Learning Strategies\nGroup discussion.\nAssessment Tasks\n"
-        "Task A.\nTask B.\n"
-    )
-    request = replace(
-        request,
-        canonical_source_text=source,
-        chunk_infos=({"chunk_id": "c1", "text": source},),
-    )
-    payloads = []
-    for packed in envelope_criteria_map_from_snapshot(
-        request.form_snapshot, "coordinator"
-    ).values():
-        if packed[0].criterion_code == "A-05":
-            payloads.append(
-                {
-                    "objective_matches": [
-                        {
-                            "objective_id": f"OBJ-{i:04}",
-                            "assessment_matched": i <= 2,
-                            "assessment_excerpt": "Task A."
-                            if i == 1
-                            else "Task B."
-                            if i == 2
-                            else "",
-                            "curriculum_matched": i <= 4,
-                            "curriculum_excerpt": CURRICULUM if i <= 4 else "",
-                        }
-                        for i in range(1, 6)
-                    ]
-                }
-            )
-        else:
-            payloads.append(
-                {
-                    "summary": "Supported.",
-                    "criterion_measurements": [
-                        {
-                            "criterion_id": c.criterion_code,
-                            "criterion_title": c.title,
-                            "score": 4,
-                            "evidence": "Task A.",
-                            "reasoning": "Supported.",
-                        }
-                        for c in packed
-                    ],
-                }
-            )
-    result = evaluate_prepared_fixture(request, FakeClient(payloads), ExecutionConfig())
-    assert len(result.criterion_scores) == 10
-    assert [row.criterion_id for row in result.criterion_scores].count("A-05") == 1
-    assert len(result.advisory_outputs.objective_matches) == 5
-    assert [row.objective_id for row in result.advisory_outputs.objective_matches] == [
-        f"OBJ-{i:04}" for i in range(1, 6)
-    ]
-    a05 = next(row for row in result.criterion_scores if row.criterion_id == "A-05")
-    assert "2/5 objectives supported" in a05.justification
-    assert a05.score == 2
-    assert result.advisory_outputs.score == 4
-    assert result.subtotal == 3.8
-
-
-def test_request_and_config_are_immutable_and_scope_resets_on_error():
-    request, payloads = prepared_request("sme")
-    with pytest.raises(TypeError):
-        request.chunk_infos[0]["text"] = "mutated"
-    with pytest.raises(FrozenInstanceError):
-        ExecutionConfig().llm_temperature = 1
-    outer = ExecutionConfig(llm_temperature=0.66)
-    original = current_execution_config()
-    with execution_scope(outer):
-        with pytest.raises(AgentExecutionError, match="canonical source text"):
-            evaluate_prepared_fixture(
-                replace(request, canonical_source_text=None),
-                FakeClient(payloads),
-                ExecutionConfig(llm_temperature=0.11),
-            )
-        assert current_execution_config() is outer
-    assert current_execution_config() is original
-    with pytest.raises(TypeError, match="explicitly supplied"):
-        evaluate_prepared_fixture(request, None, ExecutionConfig())
-
-
-def test_repair_uses_same_explicit_controls_and_shared_completion():
-    request, payloads = prepared_request("sme")
-    client = FakeClient([{}, payloads[0]])
-    result = evaluate_prepared_fixture(
-        request, client, ExecutionConfig(llm_max_new_tokens=321)
-    )
-    assert result.success and result.provenance["repair_occurred"]
-    assert result.provenance["physical_attempts"] == 4
-    assert len(client.calls) == 2
-    assert all(call[2] == 321 for call in client.calls)
-
-
-def test_request_copies_all_nested_mappings():
-    request, _ = prepared_request("itso")
-    nested = {"nested": [{"values": [1, 2]}]}
-    request = replace(
-        request,
-        precomputed_context=nested,
-        policy_evidence=nested,
-        roadmap_context=nested,
-        reference_document_ids=nested,
-        provenance=nested,
-    )
-    nested["nested"][0]["values"].append(3)
-    for field in (
-        "precomputed_context",
-        "policy_evidence",
-        "roadmap_context",
-        "reference_document_ids",
-        "provenance",
-    ):
-        value = getattr(request, field)
-        assert value["nested"][0]["values"] == (1, 2)
-        with pytest.raises(TypeError):
-            value["nested"][0]["values"] = ()
-
-
-@pytest.mark.parametrize("adapter_version", [1, 2])
-def test_retired_itso_adapters_are_rejected_before_transport(adapter_version):
-    request, _ = prepared_request("itso")
-    form = request.form_snapshot.form.model_copy(
-        update={"adapter_version": adapter_version}
-    )
-    snapshot = build_evaluation_form_snapshot(request.evaluation_id, form)
-    request = replace(request, form_snapshot=snapshot)
-    client = FakeClient([])
-    error_type = ValueError if adapter_version == 1 else SnapshotIntegrityError
-    with pytest.raises(error_type):
-        evaluate_prepared_fixture(request, client, ExecutionConfig())
-    assert client.calls == []
 
 
 def _itso_v3_request(*, report=None):

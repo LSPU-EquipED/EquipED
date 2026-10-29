@@ -61,36 +61,31 @@ Public helpers include `envelope_criteria_map_from_snapshot` and
 `COORDINATOR_SCORING_RULES`. Specialist scoring helpers are owned by their agent;
 shared score-band validation is in `runtime/scoring.py`.
 Snapshot UUID binding, versions, provenance, repair and failure behavior are
-preserved. Coordinator v3 retains official A-05 and advisory-only C-01; extraction
-neither activates a rubric version nor changes official synthesis/export policy.
+preserved. Current Coordinator adapter 4 uses explicit immutable snapshots; the
+manifest default remains v2 for legacy callers. Historical v1–v5 meanings and saved-result readers
+remain supported; their obsolete execution pipelines have been removed.
 
-Coordinator's public class lives in `agents/coordinator/agent.py`. Current orchestration
-is in `engine.py`, with source catalogs (`catalog.py`), prompt construction
-(`task_prompts.py`), bounded JSON repair (`task_execution.py`) and deterministic
-measurement validation (`measurements.py`) separated by responsibility.
+Coordinator's public class lives in `agents/coordinator/agent.py`. The active
+pipeline is rubric adapter 4 / `coordinator_current.v6`, grouped into Organization
+& Presentation (5 criteria), Assessment (5 criteria), and qualitative C-01
+alignment. `llm_rubric_guidance` guides all ten scored criteria. The model
+generates score, complete finding, and evidence together; no exhaustive counters,
+objective inventory, separate validation LLM, or final narrative writer is used.
+C-01 is a qualitative 1–4 supplement grounded in SLM and curriculum passages,
+with no objective count or denominator, excluded from the official mean and PDFs.
 
-`source_inventory.py` retains a deterministic fast path for supported source
-structures. Unfamiliar readable layouts use the assigned model to classify every
-source line in bounded, ordered windows, with an exact-length constrained JSON
-schema. A second pass verifies the labels; a corrected proposal must be verified
-again within a bounded third pass. The harness constructs objective IDs and exact
-source spans, splits explicit list/table markers, and freezes the full inventory
-before assessment/curriculum matching. Known deterministic objectives are retained
-when only assessment headings need semantic classification. Every source window
-is visited; there is no excerpt sampling or model-authored replacement text.
-Unresolved disagreement, missing objectives, corrupt/truncated input and exhausted
-configured budgets fail explicitly. Readable extracted text is required; the
-package does not perform OCR or reconstruct lost PDF geometry.
+Production adapter-4 requests receive document/source-bound rankings. Cloud
+retrieval v2 uses three rubric queries and selects up to 12 exact SLM passages per
+group at 800-character granularity. The harness selects bounded curriculum
+passages from the authoritative text supplied by the server. Citation IDs attach original
+passage text without model retyping. Each group has one bounded repair; invalid
+or missing reasoning, evidence, or summary after repair fails the full evaluation
+with no partial result or placeholder reasoning. Missing practices may receive
+a complete low-score finding (1 or 2) without citation when reasonable. Historical
+v1–v5 readers remain supported. Retired adapter snapshots cannot execute and
+require a new evaluation under adapter 4.
 
-All source-classification calls are captured in generations with the existing
-A-05 anchor. Their full prompts live in captured generations; group metadata uses
-references to avoid duplicating source prompts. Assessment and curriculum catalogs
-are partitioned into bounded exact spans, preserving later content. Absent
-count/ratio evidence scores 1, and stored ratio facts retain short-sample settings
-for deterministic replay. C-01 remains advisory and excluded from the official mean.
-
-Supported older execution contracts remain with their specialist. Coordinator's
-`legacy.py` still serves supported adapter/replay paths and is retained. Retired
+Supported older execution contracts remain with their specialist. Coordinator's retired execution modules are removed. Retired
 ITSO versions are read-only; historical contracts never enable new evaluations.
 Their database models and authenticated readers live in the server's
 `modules/itso_assessments/`; current scored results use the standard evaluation

@@ -111,6 +111,12 @@ def parse_advisory_output(data: Any) -> AdvisoryOutput | _AdvisoryLike:
         )
 
         return CoordinatorAlignmentAdvisory.from_dict(data)
+    if isinstance(data, dict) and data.get("contract") == "coordinator_alignment.v2":
+        from equiped_harness.agents.coordinator.contracts import (
+            CoordinatorAlignmentJudgment,
+        )
+
+        return CoordinatorAlignmentJudgment.from_dict(data)
     return AdvisoryOutput.from_dict(data)
 
 

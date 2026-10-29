@@ -2,9 +2,21 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from typing import Any
+
+from equiped_harness.agents.coordinator.catalog import CatalogItem
 from equiped_harness.agents.coordinator.contracts import (
     CoordinatorAlignmentAdvisory,
     CurriculumObjectiveMatch,
+)
+from equiped_harness.agents.coordinator.packet_validation import validate_packet_history
+from equiped_harness.agents.coordinator.reporting import (
+    evidence_quotes,
+    render_justification,
+    selected_source_ids,
+    unavailable_explanation,
+    validate_explanation,
 )
 from equiped_harness.contracts import (
     GroundedUnit,
@@ -16,7 +28,7 @@ from equiped_harness.runtime.bands import ratio_band
 from equiped_harness.strategies.calculators import score_ratio
 
 
-def validate_current_coordinator_bundle(result: AgentEvaluationResult) -> None:
+def _validate_current_coordinator_bundle_v1(result: AgentEvaluationResult) -> None:
     """Validate the current Coordinator bundle without trusting model prose."""
     if result.agent_name != "coordinator":
         raise ValueError("current Coordinator contract requires coordinator result")
@@ -236,12 +248,371 @@ def validate_current_coordinator_bundle(result: AgentEvaluationResult) -> None:
         raise ValueError("current A-05 justification was tampered")
 
 
+def validate_current_coordinator_bundle(
+    result: AgentEvaluationResult, snapshot: Any | None = None
+) -> None:
+    """Validate versioned Coordinator measurements and their saved explanations."""
+    if not isinstance(result.metadata, dict):
+        raise ValueError("current Coordinator execution contract is missing")
+    contract = result.metadata.get("execution_contract")
+    if contract == "coordinator_current.v6":
+        from equiped_harness.agents.coordinator.pipeline import validate_result
+
+        return validate_result(result, snapshot)
+    if contract == "coordinator_current.v5":
+        from equiped_harness.agents.coordinator.batch_engine import (
+            validate_batch_bundle,
+        )
+        from equiped_harness.exceptions import AgentExecutionError
+
+        try:
+            return validate_batch_bundle(result, snapshot)
+        except AgentExecutionError as exc:
+            raise ValueError("Coordinator batched evidence is invalid") from exc
+    if contract == "coordinator_current.v4":
+        from equiped_harness.agents.coordinator.narrative_contract import (
+            validate_narrative_bundle,
+        )
+        from equiped_harness.exceptions import AgentExecutionError
+
+        try:
+            return validate_narrative_bundle(result, snapshot)
+        except AgentExecutionError as exc:
+            raise ValueError("Coordinator model finding is invalid") from exc
+    if contract == "coordinator_current.v3":
+        from equiped_harness.agents.coordinator.unit_validation import (
+            validate_unit_coordinator_bundle,
+        )
+        from equiped_harness.exceptions import AgentExecutionError
+
+        try:
+            return validate_unit_coordinator_bundle(result, snapshot)
+        except AgentExecutionError as exc:
+            raise ValueError("current Coordinator unit evidence is invalid") from exc
+    if contract == "coordinator_current.v1":
+        return _validate_current_coordinator_bundle_v1(result)
+    if contract != "coordinator_current.v2":
+        raise ValueError("current Coordinator execution contract is unsupported")
+    if result.agent_name != "coordinator":
+        raise ValueError("current Coordinator contract requires coordinator result")
+    bundle = result.metadata.get("current_bundle")
+    if (
+        not isinstance(bundle, dict)
+        or set(bundle) - {"reasoning_unavailable", "source_retrieval"}
+        != {
+            "contract",
+            "criteria",
+            "objective",
+            "curriculum",
+            "catalog",
+            "explanations",
+        }
+        or bundle.get("contract") != "coordinator_current.v2"
+    ):
+        raise ValueError("current Coordinator v2 bundle is invalid")
+    raw_catalog = bundle["catalog"]
+    if not isinstance(raw_catalog, list):
+        raise ValueError("current Coordinator catalog is invalid")
+    catalog: dict[str, CatalogItem] = {}
+    for item in raw_catalog:
+        if not isinstance(item, dict) or not isinstance(item.get("source_id"), str):
+            raise ValueError("current Coordinator catalog item is invalid")
+        source_id = item["source_id"]
+        if (
+            source_id in catalog
+            or not isinstance(item.get("source"), str)
+            or not isinstance(item.get("text"), str)
+        ):
+            raise ValueError("current Coordinator catalog item is invalid")
+        catalog[source_id] = CatalogItem(
+            source_id=source_id,
+            source=item["source"],
+            start=item.get("start", 0),
+            end=item.get("end", len(item["text"])),
+            text=item["text"],
+            fingerprint=item.get("fingerprint", ""),
+        )
+    facts = bundle["criteria"]
+    objective = bundle["objective"]
+    curriculum = bundle["curriculum"]
+    explanations = bundle["explanations"]
+    if not all(
+        isinstance(x, dict) for x in (facts, objective, curriculum, explanations)
+    ):
+        raise ValueError("current Coordinator v2 facts are invalid")
+    # Validate row structure and every later catalog lookup before deriving coverage.
+    objective_rows = objective.get("rows")
+    curriculum_rows = curriculum.get("rows")
+    if (
+        not isinstance(objective_rows, list)
+        or not objective_rows
+        or not isinstance(curriculum_rows, list)
+        or not curriculum_rows
+        or len(objective_rows) != len(curriculum_rows)
+    ):
+        raise ValueError("current Coordinator objective denominator is invalid")
+    objective_ids: list[str] = []
+    for rows, namespace in (
+        (objective_rows, "assessment"),
+        (curriculum_rows, "curriculum"),
+    ):
+        seen_objectives: set[str] = set()
+        for row in rows:
+            if (
+                not isinstance(row, dict)
+                or set(row) != {"objective_id", "source_ids"}
+                or not isinstance(row["objective_id"], str)
+                or not row["objective_id"]
+                or row["objective_id"] in seen_objectives
+                or not isinstance(row["source_ids"], list)
+                or len(row["source_ids"]) > 2
+                or any(
+                    not isinstance(source_id, str) for source_id in row["source_ids"]
+                )
+                or len(row["source_ids"]) != len(set(row["source_ids"]))
+            ):
+                raise ValueError("current Coordinator objective row is invalid")
+            seen_objectives.add(row["objective_id"])
+            for source_id in row["source_ids"]:
+                if source_id not in catalog or catalog[source_id].source != namespace:
+                    raise ValueError("current Coordinator objective source is invalid")
+        current_ids = [row["objective_id"] for row in rows]
+        if not objective_ids:
+            objective_ids = current_ids
+        elif current_ids != objective_ids:
+            raise ValueError("current Coordinator objective rows do not align")
+    if type(objective.get("assessment_available")) is not bool:
+        raise ValueError("current Coordinator assessment availability is invalid")
+    if objective["assessment_available"] is False and any(
+        row["source_ids"] for row in objective_rows
+    ):
+        raise ValueError("unavailable assessment cannot contain objective evidence")
+
+    for cid, fact in facts.items():
+        if not isinstance(cid, str) or not isinstance(fact, dict):
+            raise ValueError("current Coordinator criterion fact is invalid")
+        kind = fact.get("kind")
+        if kind == "guidance":
+            selected = [fact["evidence_id"]] if fact.get("evidence_id") else []
+        elif kind == "count":
+            selected = fact.get("instance_ids")
+            if (
+                not isinstance(selected, list)
+                or type(fact.get("count")) is not int
+                or fact["count"] != len(selected)
+            ):
+                raise ValueError("current Coordinator count fact is inconsistent")
+        elif kind == "ratio":
+            selected = fact.get("unit_ids")
+            qualifying = fact.get("qualifying_unit_ids")
+            if (
+                not isinstance(qualifying, list)
+                or any(not isinstance(source_id, str) for source_id in qualifying)
+                or len(qualifying) != len(set(qualifying))
+                or not isinstance(selected, list)
+                or not set(qualifying).issubset(selected)
+                or type(fact.get("total")) is not int
+                or fact["total"] != len(selected)
+                or type(fact.get("qualifying")) is not int
+                or fact["qualifying"] != len(qualifying)
+            ):
+                raise ValueError("current Coordinator ratio fact is invalid")
+        else:
+            raise ValueError("current Coordinator criterion fact is invalid")
+        if (
+            not isinstance(selected, list)
+            or any(not isinstance(source_id, str) for source_id in selected)
+            or len(selected) != len(set(selected))
+        ):
+            raise ValueError("current Coordinator criterion source IDs are invalid")
+        for source_id in selected:
+            if source_id not in catalog or catalog[source_id].source != "slm":
+                raise ValueError("current Coordinator criterion source is invalid")
+
+    by_id = {score.criterion_id: score for score in result.criterion_scores}
+    expected_explanation_ids = (set(facts) - {"A-05"}) | {"A-05", "C-01"}
+    if set(explanations) != expected_explanation_ids:
+        raise ValueError("current Coordinator v2 explanations mismatch")
+    kinds = {cid: fact["kind"] for cid, fact in facts.items()}
+    kinds.update({"A-05": "objective", "C-01": "curriculum"})
+    unavailable = bundle.get("reasoning_unavailable", [])
+    if (
+        not isinstance(unavailable, list)
+        or any(not isinstance(cid, str) for cid in unavailable)
+        or len(unavailable) != len(set(unavailable))
+        or not set(unavailable).issubset(expected_explanation_ids)
+    ):
+        raise ValueError("current Coordinator unavailable reasoning marker is invalid")
+    unavailable_ids = set(unavailable)
+    envelope_status = result.metadata.get("envelope_status", {})
+    if not isinstance(envelope_status, dict):
+        raise ValueError("current Coordinator envelope status is invalid")
+
+    def task_key(cid: str) -> str:
+        if cid == "A-05":
+            return "objective-assessment"
+        if cid == "C-01":
+            return "curriculum"
+        return f"ordinary-{cid}"
+
+    for cid in unavailable_ids:
+        if envelope_status.get(task_key(cid)) != "fallback":
+            raise ValueError("unavailable reasoning requires fallback task status")
+    if any(
+        status == "fallback"
+        and key in {task_key(cid) for cid in expected_explanation_ids}
+        and key not in {task_key(cid) for cid in unavailable_ids}
+        for key, status in envelope_status.items()
+    ):
+        raise ValueError("fallback task status requires unavailable reasoning marker")
+    allowed_by_id = {
+        cid: selected_source_ids(fact, kind=kind)
+        for cid, (fact, kind) in {
+            **{cid: (fact, fact.get("kind")) for cid, fact in facts.items()},
+            "A-05": (objective, "objective"),
+            "C-01": (curriculum, "curriculum"),
+        }.items()
+    }
+    normalized: dict[str, dict[str, Any]] = {}
+    for cid in expected_explanation_ids:
+        if cid not in by_id and cid != "C-01":
+            raise ValueError("current Coordinator explanation has no score")
+        allowed = allowed_by_id[cid]
+        if cid in unavailable_ids:
+            explanation = explanations[cid]
+            if explanation != unavailable_explanation():
+                raise ValueError("unavailable reasoning explanation was tampered")
+        else:
+            explanation = validate_explanation(explanations[cid], catalog, allowed)
+        if explanation != explanations[cid]:
+            raise ValueError(
+                "stored explanation must retain original source quotations"
+            )
+        source_namespace = {
+            "guidance": "slm",
+            "count": "slm",
+            "ratio": "slm",
+            "objective": "assessment",
+            "curriculum": "curriculum",
+        }[kinds[cid]]
+        if cid not in unavailable_ids and any(
+            catalog[e["source_id"]].source != source_namespace
+            for e in explanation["evidence"]
+        ):
+            raise ValueError("current Coordinator explanation source is invalid")
+        normalized[cid] = explanation
+        score = by_id.get(cid)
+        if cid == "C-01":
+            score = result.advisory_outputs
+            score_value = score.score
+        else:
+            score_value = score.score
+        fact = (
+            facts[cid] if cid in facts else objective if cid == "A-05" else curriculum
+        )
+        expected_justification = render_justification(
+            explanation, fact, score_value, kind=kinds[cid]
+        )
+        if score.justification != expected_justification:
+            raise ValueError("current Coordinator explanation rendering was tampered")
+        if cid != "C-01" and score.evidence != evidence_quotes(explanation):
+            raise ValueError("current Coordinator explanation evidence was tampered")
+
+    validate_packet_history(result, catalog, bundle)
+
+    # Rebuild the legacy v1 representation solely for its deterministic fact checks.
+    legacy_scores = []
+    for score in result.criterion_scores:
+        cid = score.criterion_id
+        if cid == "A-05":
+            rows = objective["rows"]
+            matched = sum(bool(row["source_ids"]) for row in rows)
+            if objective.get("assessment_available") is False:
+                justification = (
+                    "Objective gauging: no assessment sections found; "
+                    "deterministic score 1."
+                )
+                evidence = ()
+            else:
+                justification = (
+                    f"Objective gauging: {matched}/{len(rows)} objectives supported "
+                    f"({matched / len(rows) * 100:.1f}%); "
+                    f"deterministic score {score.score}."
+                )
+                evidence = tuple(
+                    catalog[row["source_ids"][0]].text
+                    for row in rows
+                    if row["source_ids"]
+                )
+        else:
+            fact = facts[cid]
+            kind = fact["kind"]
+            if kind == "guidance":
+                justification = (
+                    f"{score.criterion_title}: {fact.get('status')} evidence; "
+                    f"deterministic score {score.score}/4."
+                )
+                ids = [fact["evidence_id"]] if fact.get("evidence_id") else []
+            elif kind == "count":
+                count = len(fact["instance_ids"])
+                justification = (
+                    f"{score.criterion_title}: {count} distinct instance(s); "
+                    f"deterministic score {score.score}."
+                )
+                ids = fact["instance_ids"][:8]
+            else:
+                qualifying, units = fact["qualifying_unit_ids"], fact["unit_ids"]
+                justification = (
+                    f"{score.criterion_title}: {len(qualifying)}/{len(units)} "
+                    f"qualifying unit(s); deterministic score {score.score}."
+                )
+                ids = units[:8]
+            evidence = tuple(catalog[i].text for i in ids)
+        legacy_scores.append(
+            replace(score, justification=justification, evidence=evidence)
+        )
+    advisory = CoordinatorAlignmentAdvisory.from_dict(result.advisory_outputs.to_dict())
+    curriculum_rows = curriculum["rows"]
+    cm = sum(bool(row["source_ids"]) for row in curriculum_rows)
+    advisory = advisory.model_copy(
+        update={
+            "justification": (
+                f"Curriculum alignment: {cm}/{len(curriculum_rows)} "
+                f"objectives supported; deterministic score {advisory.score}."
+            )
+        }
+    )
+    legacy_bundle = {
+        key: value
+        for key, value in bundle.items()
+        if key
+        not in {"contract", "explanations", "reasoning_unavailable", "source_retrieval"}
+    }
+    projected = replace(
+        result,
+        criterion_scores=tuple(legacy_scores),
+        advisory_outputs=advisory,
+        metadata={
+            **result.metadata,
+            "execution_contract": "coordinator_current.v1",
+            "current_bundle": legacy_bundle,
+        },
+    )
+    return _validate_current_coordinator_bundle_v1(projected)
+
+
 def validate_coordinator_coverage(result: AgentEvaluationResult) -> None:
     """Dispatch current bundles explicitly; validate legacy v3 separately."""
-    if (
-        isinstance(result.metadata, dict)
-        and result.metadata.get("execution_contract") == "coordinator_current.v1"
-    ):
+    if isinstance(result.metadata, dict) and result.metadata.get(
+        "execution_contract"
+    ) in {
+        "coordinator_current.v1",
+        "coordinator_current.v2",
+        "coordinator_current.v3",
+        "coordinator_current.v4",
+        "coordinator_current.v5",
+        "coordinator_current.v6",
+    }:
         return validate_current_coordinator_bundle(result)
     # Legacy adapter-3 persisted bundles retain the envelope_2 validator.
     advisory = CoordinatorAlignmentAdvisory.from_dict(result.advisory_outputs.to_dict())

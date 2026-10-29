@@ -1,11 +1,10 @@
-"""Validate source references and deterministically score current measurements."""
+"""Revalidate source references and scores in historical Coordinator results."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from equiped_harness.agents.coordinator.catalog import CatalogItem
-from equiped_harness.agents.coordinator.objective_gauging import ObjectiveSource
 from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
@@ -50,8 +49,10 @@ def _status(row: dict[str, Any], *, allows_absent: bool = False) -> str:
     status = row.get("status")
     if status == "insufficient":
         raise AgentExecutionError("Current Coordinator task is insufficient")
-    if status not in {"supported", "absent"} or (
-        status == "absent" and not allows_absent
+    if (
+        not isinstance(status, str)
+        or status not in {"supported", "absent"}
+        or (status == "absent" and not allows_absent)
     ):
         raise AgentExecutionError("Current Coordinator response has invalid status")
     return status
@@ -197,46 +198,3 @@ def _score_ordinary(
     if isinstance(config, RatioBandConfig):
         return _make_ratio(criterion, row, catalog)
     raise AgentExecutionError("Unsupported current Coordinator strategy")
-
-
-def _validate_objective(
-    data: dict[str, Any],
-    inventory: ObjectiveSource,
-    catalog: dict[str, CatalogItem],
-    *,
-    dimension: str,
-) -> list[dict[str, Any]]:
-    rows = data["results"]
-    if len(rows) != len(inventory.objectives):
-        raise AgentExecutionError(
-            "Objective task must include every objective exactly once"
-        )
-    expected = {o.objective_id for o in inventory.objectives}
-    seen: set[str] = set()
-    allowed = {k for k, v in catalog.items() if v.source == dimension}
-    validated: list[dict[str, Any]] = []
-    for row in rows:
-        if not isinstance(row, dict) or set(row) != {"objective_id", "source_ids"}:
-            raise AgentExecutionError("Objective row has invalid fields")
-        oid = row.get("objective_id")
-        if not isinstance(oid, str) or oid not in expected or oid in seen:
-            raise AgentExecutionError("Objective task has unknown or duplicate IDs")
-        seen.add(oid)
-        ids = _ensure_source_ids(row.get("source_ids"), allowed, max_items=2)
-        if dimension == "assessment":
-            objective_text = next(
-                o.text for o in inventory.objectives if o.objective_id == oid
-            )
-            normalized_objective = " ".join(objective_text.split()).casefold()
-            if any(
-                normalized_objective in " ".join(catalog[i].text.split()).casefold()
-                for i in ids
-            ):
-                raise AgentExecutionError(
-                    "Objective self-quotation is not assessment evidence"
-                )
-        validated.append({"objective_id": oid, "source_ids": list(ids)})
-    if seen != expected:
-        raise AgentExecutionError("Objective task is missing an objective")
-    by_id = {r["objective_id"]: r for r in validated}
-    return [by_id[o.objective_id] for o in inventory.objectives]

@@ -53,6 +53,7 @@ class EvaluationRequest:
     provenance: Mapping[str, Any] | None = None
     policy_evidence: Mapping[str, Any] | None = None
     roadmap_context: Mapping[str, Any] | None = None
+    source_retrieval: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.form_snapshot, EvaluationFormSnapshotDTO):
@@ -64,6 +65,7 @@ class EvaluationRequest:
             "provenance",
             "policy_evidence",
             "roadmap_context",
+            "source_retrieval",
         ):
             object.__setattr__(self, name, _freeze(getattr(self, name)))
 

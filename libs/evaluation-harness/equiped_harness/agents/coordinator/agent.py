@@ -1,16 +1,10 @@
-"""Public Program Coordinator agent.
-
-The current adapter-v3 engine runs independent criterion tasks, official A-05
-objective gauging and advisory-only C-01 curriculum alignment. Historical
-snapshot and envelope compatibility is implemented in ``legacy.py``.
-"""
+"""Public Program Coordinator agent."""
 
 from __future__ import annotations
 
 import uuid
 from typing import Any
 
-from equiped_harness.agents.coordinator.engine import run_current
 from equiped_harness.contracts.results import AgentEvaluationResult
 from equiped_harness.contracts.snapshots import EvaluationFormSnapshotDTO
 
@@ -53,21 +47,26 @@ class Coordinator:
         curriculum_context: str | None = None,
         **kwargs: Any,
     ) -> AgentEvaluationResult:
-        """Dispatch current adapter-3 execution; retain the legacy runner."""
-        return run_current(
-            self,
+        """Dispatch the frozen adapter version without loading retired pipelines."""
+        if form_snapshot.adapter_version != 4:
+            from equiped_harness.exceptions import AgentExecutionError
+
+            raise AgentExecutionError(
+                "Coordinator execution supports adapter 4 only; create a new "
+                "evaluation to use the current Coordinator harness"
+            )
+        from equiped_harness.agents.coordinator.pipeline import run
+
+        return run(
             evaluation_id=evaluation_id,
             document_id=document_id,
             form_snapshot=form_snapshot,
             chunk_infos=chunk_infos,
-            context_text=context_text,
-            prompt_version_id=prompt_version_id,
-            llm_client=llm_client,
-            reference_document_ids=reference_document_ids,
-            roadmap_context=roadmap_context,
             canonical_source_text=canonical_source_text,
             curriculum_id=curriculum_id,
             curriculum_context=curriculum_context,
+            llm_client=llm_client or self._default_llm_client,
+            prompt_version_id=prompt_version_id,
             **kwargs,
         )
 

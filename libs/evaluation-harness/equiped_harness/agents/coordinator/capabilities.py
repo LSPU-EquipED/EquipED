@@ -143,3 +143,49 @@ COORDINATOR_MANIFEST_V3 = AgentCapabilityManifest(
     ),
     required_criterion_strategies=(("A-05", "objective_gauging"),),
 )
+
+COORDINATOR_MANIFEST_V4 = AgentCapabilityManifest(
+    agent_id="coordinator",
+    adapter_key="coordinator",
+    adapter_version=4,
+    prompt_budget_setting="agent_total_prompt_budget_chars",
+    supported_strategies=("llm_rubric_guidance",),
+    capabilities=(
+        StrategyCapability(
+            strategy="llm_rubric_guidance",
+            mode=None,
+            measurement_shape="grounded_score",
+        ),
+    ),
+    supported_measurement_shapes=("grounded_score",),
+    min_criteria=10,
+    max_criteria=10,
+    default_prompt_budget_chars=32000,
+    allowed_criterion_codes=(
+        "OP-01",
+        "OP-02",
+        "OP-03",
+        "OP-04",
+        "OP-05",
+        "A-01",
+        "A-02",
+        "A-03",
+        "A-04",
+        "A-05",
+    ),
+    required_criterion_strategies=tuple(
+        (code, "llm_rubric_guidance")
+        for code in (
+            "OP-01",
+            "OP-02",
+            "OP-03",
+            "OP-04",
+            "OP-05",
+            "A-01",
+            "A-02",
+            "A-03",
+            "A-04",
+            "A-05",
+        )
+    ),
+)

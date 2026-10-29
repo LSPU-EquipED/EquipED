@@ -85,4 +85,47 @@ class CoordinatorAlignmentAdvisory(BaseModel):
         return cls.model_validate(data)
 
 
-__all__ = ["CoordinatorAlignmentAdvisory", "CurriculumObjectiveMatch"]
+class AlignmentEvidence(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
+    source: Literal["slm", "curriculum"]
+    excerpt: str = Field(min_length=1, max_length=2000)
+
+
+class CoordinatorAlignmentJudgment(BaseModel):
+    """Qualitative curriculum judgment; no inferred objective denominator."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    contract: Literal["coordinator_alignment.v2"] = "coordinator_alignment.v2"
+    criterion_id: Literal["C-01"] = "C-01"
+    criterion_title: Literal["Curriculum Alignment"] = "Curriculum Alignment"
+    advisory_only: Literal[True] = True
+    score: int = Field(ge=1, le=4, strict=True)
+    justification: str = Field(min_length=30, max_length=1600, strict=True)
+    evidence: tuple[AlignmentEvidence, ...] = Field(min_length=2, max_length=4)
+    objective_matches: tuple[CurriculumObjectiveMatch, ...] = ()
+
+    @model_validator(mode="after")
+    def _validate_evidence(self):
+        if {e.source for e in self.evidence} != {
+            "slm",
+            "curriculum",
+        } or self.objective_matches:
+            raise ValueError(
+                "Curriculum judgment requires both source kinds and no objective counts"
+            )
+        return self
+
+    def to_dict(self):
+        return self.model_dump(mode="json")
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls.model_validate(data)
+
+
+__all__ = [
+    "CoordinatorAlignmentAdvisory",
+    "CurriculumObjectiveMatch",
+    "AlignmentEvidence",
+    "CoordinatorAlignmentJudgment",
+]
