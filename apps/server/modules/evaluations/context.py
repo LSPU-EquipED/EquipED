@@ -17,7 +17,6 @@ from equiped_harness.runtime.references import (
     dedupe_context_chunks,
     select_reference_query_texts,
 )
-
 from server.modules.documents.ingestion.pipeline import prepare_canonical_source
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.documents.paths import resolve_document_pdf_path
@@ -54,6 +53,7 @@ class PreparedEvaluationContext:
     precomputed_context: MappingProxyType
     canonical_source_text: str
     authoritative_curriculum_text: str | None
+    source_retrieval: MappingProxyType | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -324,7 +324,12 @@ class EvaluationContextBuilder:
         return text
 
     def build(
-        self, *, chunks: list[Any], query_text: str | None, context: dict[str, Any]
+        self,
+        *,
+        chunks: list[Any],
+        query_text: str | None,
+        context: dict[str, Any],
+        form_snapshots: tuple[Any, ...] = (),
     ) -> PreparedEvaluationContext:
         infos = [
             {
@@ -356,10 +361,71 @@ class EvaluationContextBuilder:
             raise SupervisorExecutionError(
                 "canonical source preparation failed"
             ) from exc
+        source_retrieval = None
+        coordinator = next(
+            (
+                agent
+                for agent in self.agents
+                if getattr(agent, "agent_name", agent.__class__.__name__)
+                == "coordinator"
+            ),
+            None,
+        )
+        coordinator_snapshot = next(
+            (
+                snapshot
+                for snapshot in form_snapshots
+                if snapshot.agent_id == "coordinator"
+            ),
+            None,
+        )
+        if (
+            coordinator is not None
+            and is_builtin_agent(coordinator)
+            and coordinator_snapshot is not None
+            and coordinator_snapshot.adapter_version == 4
+        ):
+            try:
+                if document is None or document.source_type != "slm":
+                    raise ValueError("evaluation source is not an SLM")
+                from equiped_harness.agents.coordinator.evidence import (
+                    retrieval_queries,
+                )
+                from server.modules.embeddings.slm_retrieval import (
+                    build_slm_retrieval,
+                )
+
+                queries = retrieval_queries(coordinator_snapshot)
+                built = build_slm_retrieval(
+                    document_id=document_id,
+                    canonical_source_text=canonical_source_text,
+                    queries=queries,
+                )
+                if (
+                    not isinstance(built, dict)
+                    or built.get("contract") != "slm_retrieval.v2"
+                    or built.get("document_id") != str(document_id)
+                ):
+                    raise ValueError("retrieval document binding mismatch")
+                source_retrieval = _freeze(built)
+            except Exception as exc:
+                raise SupervisorExecutionError(
+                    "SLM evidence retrieval preparation failed"
+                ) from exc
         prompts = self._load_active_prompt_versions()
         precompute_started = time.perf_counter()
-        precomputed_context = self._build_precomputed_context(
-            text, reference_document_ids=refs, chunk_infos=infos
+        coordinator_only_v4 = (
+            len(self.agents) == 1
+            and coordinator is not None
+            and coordinator_snapshot is not None
+            and coordinator_snapshot.adapter_version == 4
+        )
+        precomputed_context = (
+            {}
+            if coordinator_only_v4
+            else self._build_precomputed_context(
+                text, reference_document_ids=refs, chunk_infos=infos
+            )
         )
         logger.info(
             "[EVAL_TIMING] phase=precompute_context | seconds=%.3f | sources=%d",
@@ -379,4 +445,5 @@ class EvaluationContextBuilder:
             authoritative_curriculum_text=self._load_authoritative_curriculum(
                 refs, program=program
             ),
+            source_retrieval=source_retrieval,
         )

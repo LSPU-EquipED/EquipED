@@ -14,7 +14,6 @@ from equiped_harness.contracts.snapshots import EvaluationFormSnapshotDTO
 from equiped_harness.exceptions import SupervisorExecutionError
 from equiped_harness.policy import get_policy_plan
 from equiped_harness.registry import AGENT_IDS, get_agent_class
-
 from server.modules.documents.models import DocumentChunk
 from server.modules.embeddings.policy_context import (
     PolicyContextLoader,
@@ -49,7 +48,10 @@ class Supervisor:
         context = context or {}
         context = {**context, "document_id": document_id}
         prepared = EvaluationContextBuilder(self.db, self.agents).build(
-            chunks=chunks, query_text=query_text, context=context
+            chunks=chunks,
+            query_text=query_text,
+            context=context,
+            form_snapshots=form_snapshots,
         )
         policy_plan = next(
             (
@@ -86,6 +88,7 @@ class Supervisor:
             roadmap_context=context.get("roadmap"),
             canonical_source_text=prepared.canonical_source_text,
             authoritative_curriculum_text=prepared.authoritative_curriculum_text,
+            source_retrieval=prepared.source_retrieval,
             heartbeat_callback=heartbeat_callback,
             lora_by_agent=lora_by_agent,
         )

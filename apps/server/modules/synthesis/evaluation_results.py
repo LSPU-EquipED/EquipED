@@ -34,7 +34,6 @@ from equiped_harness.contracts.snapshots import (
     EvaluationFormSnapshotDTO,
     SnapshotIntegrityError,
 )
-
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.feedback.items import (
@@ -68,6 +67,7 @@ from server.modules.synthesis.persistence import (
     _scheduled_ids_for_job,
     load_verified_persisted_agent_results,
 )
+from server.modules.synthesis.result_integrity import coordinator_current_contract
 from server.modules.synthesis.schemas import (
     CriterionScoreItem,
     DomainScoreBlock,
@@ -384,7 +384,7 @@ def get_evaluation_results(
                 )
 
         if any(
-            s.agent_id == "coordinator" and s.adapter_version == 3
+            s.agent_id == "coordinator" and s.adapter_version in (3, 4)
             for s in verified_snapshots
         ):
             # A completed v3 read must not silently omit or trust a tampered supplement.
@@ -425,15 +425,15 @@ def get_evaluation_results(
             envelope_key_by_code: dict[str, str] = {}
             if agent_id in _ITEM_LEVEL_AGENTS:
                 try:
-                    current_contract = (
-                        "coordinator_current.v1"
-                        if (
-                            agent_id == "coordinator"
-                            and isinstance(result.group_responses, dict)
-                            and "__current_bundle__" in result.group_responses
+                    current_contract = None
+                    if (
+                        agent_id == "coordinator"
+                        and isinstance(result.group_responses, dict)
+                        and "__current_bundle__" in result.group_responses
+                    ):
+                        current_contract = coordinator_current_contract(
+                            result.group_responses["__current_bundle__"]
                         )
-                        else None
-                    )
                     envelope_map = envelope_criteria_map_from_snapshot(
                         snapshot, agent_id, execution_contract=current_contract
                     )
@@ -590,7 +590,7 @@ def get_evaluation_results(
                     result.advisory_outputs
                     if result.success
                     and agent_id == "coordinator"
-                    and snapshot.adapter_version == 3
+                    and snapshot.adapter_version in {3, 4}
                     else None
                 ),
                 domain_id=domain_id,

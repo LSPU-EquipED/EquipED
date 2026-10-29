@@ -6,10 +6,12 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from equiped_harness.agents.coordinator.contracts import CoordinatorAlignmentAdvisory
+from equiped_harness.agents.coordinator.contracts import (
+    CoordinatorAlignmentAdvisory,
+    CoordinatorAlignmentJudgment,
+)
 from equiped_harness.agents.itso.compatibility.contracts import CriterionAssessment
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
-
 from server.modules.rubrics.presentation import (
     EvaluationFormCriterionPresentation,
     EvaluationFormDomainPresentation,
@@ -79,7 +81,9 @@ def score_to_adjectival(score: float) -> str:
 
 
 class DomainScoreBlock(BaseModel):
-    advisory_outputs: CoordinatorAlignmentAdvisory | None = None
+    advisory_outputs: (
+        CoordinatorAlignmentAdvisory | CoordinatorAlignmentJudgment | None
+    ) = None
     form_snapshot_id: UUID | None = None
     rubric_set_id: UUID | None = None
     version: int | None = None
@@ -206,7 +210,9 @@ class EvaluatorAttribution(BaseModel):
 
 
 class MasterSynthesisPillar(BaseModel):
-    advisory_outputs: CoordinatorAlignmentAdvisory | None = None
+    advisory_outputs: (
+        CoordinatorAlignmentAdvisory | CoordinatorAlignmentJudgment | None
+    ) = None
     weight: float
     subtotal: float | None = None
     status: str

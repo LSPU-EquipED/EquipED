@@ -57,7 +57,11 @@ def compute_synthesized_score(
             result.success
             and result.agent_name == "coordinator"
             and isinstance(advisory, dict)
-            and advisory.get("contract") == "coordinator_alignment.v1"
+            and advisory.get("contract")
+            in {
+                "coordinator_alignment.v1",
+                "coordinator_alignment.v2",
+            }
         ):
             domain_scores[result.agent_name]["advisory_outputs"] = advisory
 

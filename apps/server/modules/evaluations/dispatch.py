@@ -23,7 +23,6 @@ from equiped_harness.manifests import uses_managed_prompt
 from equiped_harness.provenance import sanitize_provenance
 from equiped_harness.registry import is_builtin_agent
 from equiped_harness.runtime.control import ExecutionControl
-
 from server.core.config import get_settings
 from server.core.llm import get_llm_client_for_agent
 from server.modules.evaluations.harness_adapter import (
@@ -186,6 +185,7 @@ class AgentDispatcher:
         roadmap_context=None,
         canonical_source_text=None,
         authoritative_curriculum_text=None,
+        source_retrieval=None,
         lora=None,
         control=None,
     ):
@@ -222,6 +222,8 @@ class AgentDispatcher:
                     roadmap_context=_thaw(roadmap_context),
                     canonical_source_text=canonical_source_text,
                 )
+                if agent_name == "coordinator" and form_snapshot.adapter_version == 4:
+                    kwargs["source_retrieval"] = _thaw(source_retrieval)
                 request_kwargs = {
                     key: value
                     for key, value in kwargs.items()
@@ -306,6 +308,7 @@ class AgentDispatcher:
         roadmap_context,
         canonical_source_text=None,
         authoritative_curriculum_text=None,
+        source_retrieval=None,
         heartbeat_callback: Callable[[], None] | None = None,
         lora_by_agent=None,
     ):
@@ -407,6 +410,7 @@ class AgentDispatcher:
                     roadmap_context=snapshots["roadmap_context"],
                     canonical_source_text=canonical_source_text,
                     authoritative_curriculum_text=authoritative_curriculum_text,
+                    source_retrieval=source_retrieval,
                     lora=(lora_by_agent or {}).get(name),
                     control=control,
                 )

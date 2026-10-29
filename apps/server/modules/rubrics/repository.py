@@ -451,6 +451,16 @@ def activate_revision(
             f"'{rubric_set.agent_id}', not '{agent_id}'"
         )
 
+    if (
+        not is_system
+        and rubric_set.agent_id == "coordinator"
+        and rubric_set.adapter_version != 4
+    ):
+        raise ValueError(
+            "Cannot activate Coordinator revision with adapter version "
+            f"{rubric_set.adapter_version}; adapter version 4 is required"
+        )
+
     if rubric_set.status != "published":
         raise ValueError(
             f"Cannot activate revision {rubric_set_id} with status "
@@ -698,6 +708,16 @@ def publish_draft_revision(
             raise ValueError(
                 f"Cannot publish non-draft rubric set {rubric_set_id}; "
                 f"status is '{locked_set.status}'"
+            )
+
+        if (
+            not is_system
+            and locked_set.agent_id == "coordinator"
+            and locked_set.adapter_version != 4
+        ):
+            raise ValueError(
+                "Cannot publish and activate Coordinator revision with adapter "
+                f"version {locked_set.adapter_version}; adapter version 4 is required"
             )
 
         if activation is None and not is_system:

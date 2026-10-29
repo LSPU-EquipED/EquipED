@@ -14,6 +14,7 @@ from typing import Any
 from equiped_harness.contracts.results import (
     AdvisoryOutput,
     AgentEvaluationResult,
+    CapturedGeneration,
     parse_advisory_output,
 )
 from equiped_harness.contracts.results import (
@@ -23,8 +24,6 @@ from equiped_harness.contracts.snapshots import (
     EvaluationFormSnapshotDTO,
     SnapshotIntegrityError,
 )
-from sqlalchemy import or_
-
 from server.modules.documents.models import DocumentChunk
 from server.modules.evaluations.agent_schedule import scheduled_agent_ids
 from server.modules.evaluations.models import EvaluationJob
@@ -40,9 +39,11 @@ from server.modules.synthesis.result_integrity import (
     ADVISORY_CAPABLE_AGENTS,
     PersistableAgentResult,
     build_persistable_agent_result,
+    coordinator_current_contract,
     derive_ungrounded_criterion_ids,
     grounding_eligible_criterion_ids,
 )
+from sqlalchemy import or_
 
 logger = logging.getLogger(__name__)
 
@@ -399,6 +400,55 @@ def load_verified_persisted_agent_results(
 
     valid_result_ids = {r.agent_result_id for r in agent_results}
     result_by_id = {r.agent_result_id: r for r in agent_results}
+    v6_result_ids = {
+        r.agent_result_id
+        for r in agent_results
+        if r.agent_name == "coordinator"
+        and isinstance(r.group_responses, dict)
+        and isinstance(r.group_responses.get("__current_bundle__"), dict)
+        and r.group_responses["__current_bundle__"].get("contract")
+        == "coordinator_current.v6"
+    }
+    generations_by_result: dict[uuid.UUID, list[AgentGeneration]] = {}
+    if v6_result_ids:
+        generation_rows = (
+            db.query(AgentGeneration)
+            .filter(AgentGeneration.agent_result_id.in_(v6_result_ids))
+            .all()
+        )
+        for generation in generation_rows:
+            if (
+                generation.agent_result_id not in v6_result_ids
+                or generation.evaluation_id != evaluation_id
+                or generation.document_id != document_id
+                or generation.agent_id != "coordinator"
+                or generation.form_snapshot_id
+                != snapshot_by_agent["coordinator"].snapshot_id
+                or generation.prompt_version_id
+                != result_by_id[generation.agent_result_id].prompt_version_id
+                or generation.model_name
+                != result_by_id[generation.agent_result_id].model_name
+                or generation.capture_origin != "native"
+                or not isinstance(generation.prompt_text, str)
+                or not isinstance(generation.response_text, str)
+                or hashlib.sha256(generation.prompt_text.encode("utf-8")).hexdigest()
+                != generation.prompt_sha256
+                or hashlib.sha256(generation.response_text.encode("utf-8")).hexdigest()
+                != generation.response_sha256
+            ):
+                raise EvaluationResultIntegrityError(
+                    "Persisted Coordinator generation identity or hash mismatch"
+                )
+            generations_by_result.setdefault(generation.agent_result_id, []).append(
+                generation
+            )
+        if any(
+            len(generations_by_result.get(result_id, ())) != 3
+            for result_id in v6_result_ids
+        ):
+            raise EvaluationResultIntegrityError(
+                "Persisted Coordinator v6 result must have three native generations"
+            )
 
     criterion_scores = (
         db.query(CriterionScore)
@@ -642,10 +692,11 @@ def load_verified_persisted_agent_results(
         if (
             row.agent_name == "coordinator"
             and isinstance(row.group_responses, dict)
-            and isinstance(row.group_responses.get("__current_bundle__"), dict)
+            and "__current_bundle__" in row.group_responses
         ):
-            meta["execution_contract"] = "coordinator_current.v1"
-            meta["current_bundle"] = row.group_responses["__current_bundle__"]
+            current_bundle = row.group_responses["__current_bundle__"]
+            meta["execution_contract"] = coordinator_current_contract(current_bundle)
+            meta["current_bundle"] = current_bundle
 
         reconstructed_result = AgentEvaluationResult(
             agent_name=row.agent_name,
@@ -665,9 +716,32 @@ def load_verified_persisted_agent_results(
             metadata=meta,
             provenance=row.provenance,
             advisory_outputs=adv_dto,
+            generations=tuple(
+                CapturedGeneration(
+                    unit_key=g.unit_key,
+                    criterion_ids=tuple(g.criterion_ids),
+                    prompt_text=g.prompt_text,
+                    prompt_messages=(
+                        tuple(dict(m) for m in g.prompt_messages)
+                        if g.prompt_messages is not None
+                        else None
+                    ),
+                    response_text=g.response_text,
+                    response_json=g.response_json,
+                    response_contract_key=g.response_contract_key,
+                    response_contract_version=g.response_contract_version,
+                    model_name=g.model_name,
+                    envelope_status=g.envelope_status,
+                    generation_provenance=g.generation_provenance,
+                    prompt_version_id=g.prompt_version_id,
+                )
+                for g in generations_by_result.get(row.agent_result_id, [])
+            ),
         )
 
-        persistable = build_persistable_agent_result(reconstructed_result, snapshot_dto)
+        persistable = build_persistable_agent_result(
+            reconstructed_result, snapshot_dto, persisted_read=True
+        )
 
         if persistable.provenance_json is not None:
             if json.loads(persistable.provenance_json) != row.provenance:
