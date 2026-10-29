@@ -1,21 +1,7 @@
-"""Canonical default scoring-rule text for Coordinator's 10 rubric criteria.
+"""Historical adapter 1–3 scoring text retained for seed/replay compatibility.
 
-These seed the nullable ``rubric_criteria.scoring_rule`` column for Coordinator
-Rubric v3 so CID admins see real, editable text in the Rubric Editor rather
-than blank fields. Once seeded, the stored value is what
-``coordinator/prompt.py`` injects into the envelope prompt at evaluation time
-(via the frozen snapshot), exactly like SME -- an admin edit changes how
-subsequent evaluations score, with no code change.
-
-The nine non-A-05 rules are copied verbatim from SME's scoring rules
-(``server/alembic/versions/20260829_0001`` / ``sme/group_prompt.py``); the
-Coordinator scores those criteria with the same measurement-extraction
-mechanism. A-05 is rewritten for curriculum grounding: Coordinator's A-05 uses
-the ``curriculum_alignment`` strategy, where an objective counts only when a
-verbatim span of the curriculum context supports it.
-
-``server/alembic/versions/20260902_0001`` embeds a verbatim copy of this dict
-(migrations must not import app code) -- keep the two in sync.
+Current adapter 4 guidance lives in rubric.py and its published database revision.
+Applied migrations embed their own immutable copies of these historical rules.
 """
 
 from __future__ import annotations

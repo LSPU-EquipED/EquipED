@@ -1,4 +1,4 @@
-"""Exact source spans and deterministic IDs for current Coordinator tasks."""
+"""Historical Coordinator source spans and fingerprint validation."""
 
 from __future__ import annotations
 
@@ -6,10 +6,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Any
 
-from equiped_harness.agents.coordinator.objective_gauging import ObjectiveSource
-from equiped_harness.exceptions import AgentExecutionError
-
-_MAX_CATALOG_EXCERPT = 4_000
+from equiped_harness.runtime.source_retrieval import SLM_SOURCE_SPAN_CHARS
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,71 +29,68 @@ class CatalogItem:
         }
 
 
-def _item(source_id: str, source: str, start: int, end: int) -> CatalogItem:
-    text = source[start:end]
-    return CatalogItem(
-        source_id=source_id,
-        source="slm",
-        start=start,
-        end=end,
-        text=text,
-        fingerprint=hashlib.sha256(text.encode("utf-8")).hexdigest(),
-    )
-
-
-def _catalog(
-    canonical: str, inventory: ObjectiveSource, curriculum: str
-) -> dict[str, CatalogItem]:
-    # Ordinary criteria receive one complete SLM unit.  Objective and
-    # assessment IDs are separate namespaces and can never be confused.
-    result: dict[str, CatalogItem] = {}
-    for offset in range(0, len(canonical), _MAX_CATALOG_EXCERPT):
-        index = offset // _MAX_CATALOG_EXCERPT + 1
-        result[f"slm-{index:04d}"] = _item(
-            f"slm-{index:04d}",
-            canonical,
-            offset,
-            min(len(canonical), offset + _MAX_CATALOG_EXCERPT),
-        )
-    for objective in inventory.objectives:
-        result[f"objective-{objective.objective_id[4:]}"] = CatalogItem(
-            source_id=f"objective-{objective.objective_id[4:]}",
-            source="objective",
-            start=objective.start,
-            end=objective.end,
-            text=objective.text,
-            fingerprint=hashlib.sha256(objective.text.encode("utf-8")).hexdigest(),
-        )
-    cursor = 0
-    assessment_count = 0
-    for section in inventory.assessment_sections:
-        start = canonical.find(section, cursor)
-        if start < 0:
-            start = canonical.find(section)
-        if start < 0:
-            raise AgentExecutionError("Assessment section has no exact source span")
-        for offset in range(0, len(section), _MAX_CATALOG_EXCERPT):
-            assessment_count += 1
-            key = f"assessment-{assessment_count:04d}"
-            text = section[offset : offset + _MAX_CATALOG_EXCERPT]
-            result[key] = CatalogItem(
-                key,
-                "assessment",
-                start + offset,
-                start + offset + len(text),
-                text,
-                hashlib.sha256(text.encode("utf-8")).hexdigest(),
+def read_catalog(rows: Any) -> dict[str, CatalogItem]:
+    """Restore persisted source spans after checking their exact fingerprints."""
+    if not isinstance(rows, list):
+        raise ValueError("current Coordinator catalog is invalid")
+    result = {}
+    fields = {"source_id", "source", "start", "end", "text", "fingerprint"}
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != fields:
+            raise ValueError("current Coordinator catalog item is invalid")
+        sid = row["source_id"]
+        if (
+            not isinstance(sid, str)
+            or sid in result
+            or not isinstance(row["text"], str)
+        ):
+            raise ValueError("current Coordinator catalog item is invalid")
+        if (
+            row["source"] not in {"slm", "objective", "assessment", "curriculum"}
+            or type(row["start"]) is not int
+            or type(row["end"]) is not int
+            or row["start"] < 0
+            or row["end"] < row["start"]
+            or row["end"] - row["start"] != len(row["text"])
+            or hashlib.sha256(row["text"].encode()).hexdigest() != row["fingerprint"]
+        ):
+            raise ValueError(
+                "current Coordinator catalog span or fingerprint is invalid"
             )
-        cursor = start + len(section)
-    for offset in range(0, len(curriculum), _MAX_CATALOG_EXCERPT):
-        key = f"curriculum-{offset // _MAX_CATALOG_EXCERPT + 1:04d}"
-        text = curriculum[offset : offset + _MAX_CATALOG_EXCERPT]
-        result[key] = CatalogItem(
-            key,
-            "curriculum",
-            offset,
-            offset + len(text),
-            text,
-            hashlib.sha256(text.encode("utf-8")).hexdigest(),
-        )
+        result[sid] = CatalogItem(**row)
+    for namespace in ("objective", "assessment", "curriculum"):
+        ids = [item.source_id for item in result.values() if item.source == namespace]
+        if ids != [f"{namespace}-{index:04d}" for index in range(1, len(ids) + 1)]:
+            raise ValueError("current Coordinator catalog namespace IDs are invalid")
     return result
+
+
+def canonical_source(catalog: dict[str, CatalogItem]) -> str:
+    slm_items = [item for item in catalog.values() if item.source == "slm"]
+    if any(
+        type(item.start) is not int or type(item.end) is not int for item in slm_items
+    ):
+        raise ValueError("SLM catalog spans are invalid")
+    slm = sorted(
+        slm_items,
+        key=lambda item: item.start,
+    )
+    pieces: list[str] = []
+    cursor = 0
+    for index, item in enumerate(slm, 1):
+        expected_id = f"slm-{index:04d}"
+        if (
+            item.source_id != expected_id
+            or type(item.start) is not int
+            or type(item.end) is not int
+            or item.start != cursor
+            or item.end <= item.start
+            or item.end - item.start > SLM_SOURCE_SPAN_CHARS
+            or item.end - item.start != len(item.text)
+            or (index < len(slm) and item.end - item.start != SLM_SOURCE_SPAN_CHARS)
+            or hashlib.sha256(item.text.encode("utf-8")).hexdigest() != item.fingerprint
+        ):
+            raise ValueError("SLM catalog spans are invalid")
+        cursor = item.end
+        pieces.append(item.text)
+    return "".join(pieces)

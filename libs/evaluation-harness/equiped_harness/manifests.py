@@ -10,6 +10,7 @@ from equiped_harness.agents.coordinator.capabilities import (
     COORDINATOR_MANIFEST_V1,
     COORDINATOR_MANIFEST_V2,
     COORDINATOR_MANIFEST_V3,
+    COORDINATOR_MANIFEST_V4,
 )
 from equiped_harness.agents.gad.capabilities import GAD_MANIFEST_V1, GAD_MANIFEST_V2
 from equiped_harness.agents.itso.capabilities import (
@@ -61,6 +62,7 @@ AGENT_MANIFEST_VERSION_REGISTRY: MappingProxyType[
         ("coordinator", 1): COORDINATOR_MANIFEST_V1,
         ("coordinator", 2): COORDINATOR_MANIFEST_V2,
         ("coordinator", 3): COORDINATOR_MANIFEST_V3,
+        ("coordinator", 4): COORDINATOR_MANIFEST_V4,
     }
 )
 

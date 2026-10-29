@@ -33,7 +33,22 @@ def envelope_criteria_map_from_snapshot(
     ``ValueError`` if ``agent_id`` isn't a supported agent.
     """
     criteria = tuple(c for d in snapshot.form.domains for c in d.criteria)
-    if agent_id == "coordinator" and execution_contract == "coordinator_current.v1":
+    if agent_id == "coordinator" and execution_contract == "coordinator_current.v6":
+        return {
+            "organization": tuple(
+                c for c in criteria if c.criterion_code.startswith("OP-")
+            ),
+            "assessment": tuple(
+                c for c in criteria if c.criterion_code.startswith("A-")
+            ),
+        }
+    if agent_id == "coordinator" and execution_contract in {
+        "coordinator_current.v1",
+        "coordinator_current.v2",
+        "coordinator_current.v3",
+        "coordinator_current.v4",
+        "coordinator_current.v5",
+    }:
         groups = {
             f"ordinary-{c.criterion_code}": (c,)
             for c in criteria

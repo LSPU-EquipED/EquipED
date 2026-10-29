@@ -15,6 +15,7 @@ class ExecutionConfig:
     llm_temperature_itso: float = 0.0
     llm_max_new_tokens: int = 4096
     llm_request_timeout_seconds: float = 120
+    coordinator_run_timeout_seconds: int = 600
     llm_response_mode: str = "json_object"
     agent_max_chunks: int = 12
     agent_max_excerpt_chars: int = 800
@@ -59,6 +60,8 @@ class ExecutionConfig:
                 raise ValueError(f"Invalid {field.name}")
         if self.llm_request_timeout_seconds > 3600:
             raise ValueError("Invalid llm_request_timeout_seconds")
+        if self.coordinator_run_timeout_seconds > 3600:
+            raise ValueError("Invalid coordinator_run_timeout_seconds")
         if self.llm_max_new_tokens > 32768:
             raise ValueError("Invalid llm_max_new_tokens")
 
