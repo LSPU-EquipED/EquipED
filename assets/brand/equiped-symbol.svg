@@ -1,0 +1,6 @@
+<!-- EquipED Folio identity. Public Sans SemiBold lettering is outlined; license: ../fonts/PublicSans-OFL.txt. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="logo-title">
+  <title id="logo-title">EquipED symbol</title>
+    <path d="M10 6H42L56 20V22H24V26H47V38H24V46H56V58H10Z" fill="#1b3b87"/>
+    <path d="M42 6V20H56Z" fill="#d9ad1d"/>
+</svg>
