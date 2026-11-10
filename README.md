@@ -1,4 +1,11 @@
 <p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/equiped-lspu-dark.svg" />
+    <img src="assets/branding/equiped-lspu.svg" alt="EquipED × LSPU" width="560" />
+  </picture>
+</p>
+
+<p align="center">
   Institutional review of self-paced learning modules<br />
   Laguna State Polytechnic University · Santa Cruz Campus · College of Computer Studies
 </p>
