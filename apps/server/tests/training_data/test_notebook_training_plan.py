@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-NOTEBOOK_PATH = REPO_ROOT / "docs" / "colab" / "dpo_training_template.ipynb"
+NOTEBOOK_PATH = REPO_ROOT / "colab" / "dpo_training_template.ipynb"
 START = "# --- planning helpers (tested) ---"
 END = "# --- end planning helpers ---"
 

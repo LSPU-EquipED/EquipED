@@ -1,6 +1,6 @@
 # EquipED identity — Folio
 
-Folio is the selected product identity, refined through the Ribbon concept: a solid E with a larger connected corner fold and open spacing between the bars. The amber fold sits flush within the silhouette without a separate crease detail. The monochrome version preserves the same E silhouette. The LSPU emblem identifies institutional affiliation and remains a separate asset. The shared sidebar, authentication brand panel, and both portal favicons use Folio.
+Folio is the EquipED product identity: a solid E with a larger connected corner fold and open spacing between the bars. The amber fold sits flush within the silhouette without a separate crease detail. The monochrome version preserves the same E silhouette. The LSPU emblem identifies institutional affiliation and remains a separate asset. The shared sidebar, authentication brand panel, and both portal favicons use Folio.
 
 ## Assets
 
@@ -17,5 +17,3 @@ All files have transparent backgrounds. Use the complete logo where the name nee
 The palette follows DESIGN.md: royal blue #1b3b87, amber #d9ad1d, ink #1b2b33, and surface #fbfcfc. Wordmarks use the existing Public Sans SemiBold lettering converted to vector paths. All SVGs are self-contained: they require no embedded font or font installation and can be used directly in browser and print workflows. Font license: ../fonts/PublicSans-OFL.txt.
 
 `folio-preview.png` shows the supplied variants and the symbol at 16–64px. The SVGs are the production assets; the preview is for reference only.
-
-Unselected concepts have been removed; this directory contains only the adopted Folio identity.

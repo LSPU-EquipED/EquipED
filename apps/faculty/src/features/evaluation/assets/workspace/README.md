@@ -1,8 +1,7 @@
 # Specialist workspace assets
 
 The evaluation feature owns these eleven self-contained SVGs. Dashboard specialist
-icons belong to the home feature; the shared faculty archive retains the earlier
-concepts and generation prompts.
+icons belong to the home feature.
 
 ## Illustrations
 

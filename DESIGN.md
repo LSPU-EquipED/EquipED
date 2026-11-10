@@ -1,69 +1,4 @@
----
-version: alpha
-name: EquipED
-description: Institutional SLM evaluation workbench for LSPU faculty and CID reviewers
-
-colors:
-  primary: "#1b3b87"
-  primary-strong: "#142f70"
-  primary-soft: "#e8eef9"
-  primary-foreground: "#ffffff"
-  secondary: "#d9ad1d"
-  secondary-foreground: "#1b2b33"
-  accent: "#d9ad1d"
-  accent-soft: "#fbf3cf"
-  accent-foreground: "#493b08"
-  success: "#28754b"
-  success-soft: "#e8f3ec"
-  success-foreground: "#ffffff"
-  info: "#28758a"
-  info-soft: "#e4f1f4"
-  info-foreground: "#ffffff"
-  warning: "#86620a"
-  warning-soft: "#fbf3d9"
-  warning-foreground: "#ffffff"
-  destructive: "#b13b32"
-  destructive-soft: "#fbeceb"
-  destructive-foreground: "#ffffff"
-  canvas: "#eef2f3"
-  surface: "#fbfcfc"
-  surface-subtle: "#e7edef"
-  text: "#1b2b33"
-  text-muted: "#60717a"
-  border: "#cad6da"
-  border-strong: "#91a5ad"
-  input: "#b7c7cc"
-  ring: "#1b3b87"
-
-typography:
-  family: "Public Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
-  tracking: normal
-  body: "15px / 1.6"
-  label: "12px / 1.4 / 600 / 0.04em for compact label tokens"
-  data: "13px / 1.35 / 500"
-
-spacing:
-  unit: 4px
-  control: 40px
-  native-select-md: 38px
-  topbar: 56px
-  sidebar: 256px
-  sidebar-collapsed: 72px
-
-rounded:
-  none: 0px
-  xs: 2px
-  sm: 4px
-  md: 6px
-  lg: 6px
-  xl: 6px
----
-
 # EquipED Design System
-
-## Curriculum objective management
-
-The Admin Knowledge Base includes Curriculum Objectives with an objective catalog and a course-mapping view. Use compact tables, code/description search, a program filter, mapping counts, and a focused add/edit dialog. Program is a required dropdown with only BSCS and BSInfoTech; keep UUIDs out of the form. Standalone alignment supports both programs. Explain that objectives require course mappings before use, and show an explicit unmapped state. The faculty module picker accepts processed SLMs from both programs; filter target courses to the selected module's program and clear the course selection when changing modules. Course mappings use labelled I/E/D choices and Not mapped, with an explicit Save action. Preserve entered values after failures, explain stale-edit conflicts, protect unsaved changes, and retain keyboard focus within the objective dialog.
 
 ## Direction
 
@@ -246,3 +181,7 @@ Place Comparisons, Evidence & reasoning, Training, and Method inside an Experime
 Visualize MAE and audited quotation grounding with paired horizontal Base and Fine-tuned model bars above the disclosure. Use labelled zero-based linear scales (0–3 for MAE and 0–100% for grounding), visible exact values, and supporting exact-match counts. Comparisons uses grouped horizontal Base MAE and Fine-tuned MAE bars per SLM, with blue and green series, a left-hand label column, vertical dashed gridlines, a shared 0-2 scale (bars capped at 2 with an explanation when exceeded), exact values, and a legend below. Equal values remain visible as two equal-length bars; zero error is shown with its numeric value and zero bar width. Training shows first-versus-last bars on separate scales for DPO loss and reward margin, including negative margins when present; never interpolate an unrecorded learning curve. Provide readable text and outcome labels so color and pointer interaction are not required to interpret a chart.
 
 The Method view uses a Methodology heading, Dataset facts on the left and Limitations on the right at desktop widths, stacked on mobile. Present comparisons, explicitly curated unique-SLM counts, dataset pairs, and reference type in a compact facts grid; missing counts say Not recorded. Use 14px body text, strong contrast, and prose capped near 70 characters per line. Give limitations concise bold lead-ins while preserving their meaning and unknown notes. Keep limitations visible; archive dates, run identifiers, and prompt hashes belong in a separate default-closed Provenance disclosure, with no further nested run disclosures.
+
+## Curriculum objective management
+
+The Admin Knowledge Base includes Curriculum Objectives with an objective catalog and a course-mapping view. Use compact tables, code/description search, a program filter, mapping counts, and a focused add/edit dialog. Program is a required dropdown with only BSCS and BSInfoTech; keep UUIDs out of the form. Standalone alignment supports both programs. Explain that objectives require course mappings before use, and show an explicit unmapped state. The faculty module picker accepts processed SLMs from both programs; filter target courses to the selected module's program and clear the course selection when changing modules. Course mappings use labelled I/E/D choices and Not mapped, with an explicit Save action. Preserve entered values after failures, explain stale-edit conflicts, protect unsaved changes, and retain keyboard focus within the objective dialog.

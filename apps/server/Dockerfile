@@ -28,7 +28,7 @@ COPY apps/server ./apps/server
 
 # The Colab notebook template served by the Training Data page's download button
 # (server.modules.training_data.notebook.TEMPLATE_PATH is relative to /app).
-COPY docs/colab/dpo_training_template.ipynb ./docs/colab/dpo_training_template.ipynb
+COPY colab/dpo_training_template.ipynb ./colab/dpo_training_template.ipynb
 
 # Development target: runs uvicorn server.main:app with hot reload
 FROM base AS dev

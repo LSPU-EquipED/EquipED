@@ -11,7 +11,7 @@ It needs a running llama-server with the adapter loaded at scale 0.0 (see
 ## What you need
 
 1. **An adapter zip trained with the grouped-split notebook.** The training
-   notebook (`docs/colab/dpo_training_template.ipynb`) holds out whole
+   notebook (`colab/dpo_training_template.ipynb`) holds out whole
    documents, keeping all evaluations of each SLM on the same side. It saves
    the retained held-out pairs inside the zip as `heldout_pairs.jsonl`.
    Fewer than 20 source pairs, a single document, or removal of every held-out
@@ -21,7 +21,7 @@ It needs a running llama-server with the adapter loaded at scale 0.0 (see
    applies only within that limit. Evaluate training-only adapters using
    separately reserved data.
 2. **The adapter loaded on the server.** Convert the zip to a GGUF LoRA
-   (`docs/colab/adapter_to_gguf_template.ipynb`) and ask the host owner to load
+   (`colab/adapter_to_gguf_template.ipynb`) and ask the host owner to load
    it with `--lora-scaled <file>.gguf:0.0`. Every new adapter needs this step
    before it can be evaluated; the evaluation runs on the exact served
    artifact, not on the Colab copy.
@@ -44,13 +44,11 @@ counts, dropped pair IDs, overlap counts and any training-only reason.
 `heldout.method` is `group_by_document_id`; its count and checksum describe the
 actual saved file. Held-out rows include `document_id` alongside existing IDs.
 
-Older archives with `group_by_evaluation_id`, including SME v10, remain readable.
-Their held-out evaluations may contain documents seen during training; the
-reader does not retrospectively certify document independence. The separate
-house-rule reference SLMs are outside the frozen training package and remain
-the appropriate unseen-document comparison for those experiments. For the
-synthetic +1 experiment, closer scores demonstrate the taught behavior, not
-greater agreement with institutional reviewers.
+Older archives with `group_by_evaluation_id` remain readable, but their
+held-out evaluations may contain documents seen during training. The reader
+does not retrospectively certify document independence. For synthetic target
+edits, closer scores demonstrate the taught behavior, not greater agreement
+with institutional reviewers.
 
 Before a real run, check:
 

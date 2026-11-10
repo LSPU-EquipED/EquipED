@@ -1,353 +1,105 @@
-# EquipED Architecture & System Structure
+# EquipED architecture
 
-Authoritative architectural specification for the EquipED platform, documenting the verified **current monorepo architecture**, the repository's **code-writing style**, and operational boundaries.
+EquipED is a pnpm and uv monorepo: two React applications, one FastAPI modular
+monolith, shared frontend libraries, and an installable specialist harness.
+[Product scope](PRODUCT.md) and [requirements](PRD.md) define its purpose.
 
----
+## Boundaries
 
-## 1. System Purpose & Core Invariants
+| Component | Responsibility |
+| --- | --- |
+| `apps/faculty` | Document library, specialist workspaces, alignment, history, and result review. |
+| `apps/admin` | References, rubrics, objectives, accounts, monitoring, feedback, and model administration. |
+| `apps/server` | Authorization, document processing, retrieval, durable execution, model resolution, persistence, and synthesis. |
+| `libs/evaluation-harness` | Specialist pipelines, prompts, rubric interpretation, scoring, semantic validation, and public-reference tools. |
+| `libs/auth`, `libs/api-client`, `libs/types`, `libs/ui` | Shared sessions, API access, contracts, and design primitives. |
+| `infra` | Reverse-proxy and database operating resources. |
+| `training` | Standalone training, serving integration, and validation tools. |
 
-EquipED evaluates Self-Paced Learning Materials (SLMs) from Laguna State Polytechnic University – Santa Cruz Campus (LSPU SCC), College of Computer Studies (CCS), against institutional rubrics and authoritative reference documents across four independent evaluation perspectives:
-1. **SME (Subject Matter Expert)**: Pedagogical coherence, content accuracy, and assessment quality.
-2. **Coordinator (Program Coordinator)**: Curriculum alignment and Outcomes-Based Education (OBE) compliance.
-3. **GAD (Gender & Development)**: Inclusivity, non-discriminatory language, and gender-responsive representation.
-4. **ITSO (Innovation and Technology Support Office)**: Intellectual property, citations, and digital/data privacy compliance.
+Server `core` is infrastructure-only; domain behavior belongs to modules.
+Frontend features are self-contained, with shared behavior in libraries.
+The harness receives immutable prepared inputs, controls, explicit tools, and a
+model-client adapter. It has no server, ORM, Chroma, or settings dependency.
+The server supplies authorized data and persists validated results; the harness
+interprets evidence and executes specialist workflows.
 
-### Non-Negotiable System Invariants
-
-1. **Human Authority**: Human evaluators and CID QA experts remain authoritative. Agent-generated scores, highlights, and rationales are strictly advisory co-pilot outputs.
-2. **Dual-Path Data Processing**:
-   - **SLM Modules (Authoritative Input)**: Faculty-uploaded SLMs are parsed and extracted into chunked text. Current Coordinator adapter 4 uses document-scoped retrieval to rank bounded exact passages for grouped LLM rubric judgments; historical versions retain their original coverage and scoring contracts. Other specialists retain their existing source preparation.
-   - **Reference Documents & Rubrics (Vector Retrieval)**: Institutional syllabi, curriculum guides, and rubrics are parsed, chunked, and embedded into private vector storage to serve retrieval-augmented generation (RAG).
-3. **Data Residency & Privacy**: Storage is local or private by default. Explicit deployment authorization may select managed Chroma Cloud for reference, rubric and policy vectors and their stored text/metadata. This does not authorize external inference or public sharing; ownership scoping and private-model policy-delivery checks remain enforced. Coordinator SLM indexing is explicitly authorized in the configured store, isolated from reference collections and scoped to the evaluated document and source/model version.
-4. **Deterministic Synthesis**: Faculty evaluations execute one selected Layer 3 specialist per job and persist its output to relational storage. In-process Layer 4 deterministically merges each result into a progressive monitoring matrix; it computes a composite only after all four specialist domains are present. No further automated layers or open-ended autonomous agents run beyond Layer 4.
-5. **Truthful Evaluation States**:
-   - A successful faculty job is complete for its targeted specialist even while the document-level matrix is still in progress.
-   - Intentional partial-without-curriculum execution is retained for Admin model-validation bundles and historical jobs, not new faculty submissions; it must record which domains were executed or skipped.
-   - Runtime failures must fail closed and never present as partial success.
-6. **No External Message Broker**: In-process durable DB-backed FIFO queueing handles asynchronous evaluations without Celery, Redis, or distributed broker infrastructure.
-
----
-
-## 2. Current Architecture (Implemented Monorepo)
-
-Reviewed DPO sources reuse `dpo_training_jobs`: a partial unique index permits one active source per agent. The training-data module validates imported package bytes, hashes and provenance, and copies the active package into each new job; without an active source it uses the existing feedback exporter. Administrative imports and source changes are transactional and retain earlier jobs and feedback. This adds no evaluation layer, external service or queue. The existing Admin training and notebook interfaces remain the execution path.
-
-The system operates as a unified **pnpm + uv monorepo** consisting of a single-process FastAPI modular monolith (`apps/server`), two feature-driven React Vite applications (`apps/faculty` and `apps/admin`), extracted shared workspace libraries (`libs/*`), and a reverse-proxy ingress (`infra/caddy/Caddyfile.dev`).
-
-```mermaid
-graph TD
-    subgraph Ingress ["Edge Ingress & Reverse Proxy"]
-        Caddy["Caddy reverse proxy :3000"]
-    end
-
-    subgraph Client_Applications ["apps/ React SPAs"]
-        FacultyApp["apps/faculty"]
-        AdminApp["apps/admin"]
-    end
-
-    subgraph Backend_Monolith ["apps/server FastAPI modular monolith :8000"]
-        APIRouter["FastAPI API routers"]
-        AuthModule["Auth and RBAC"]
-        DocModule["Documents and uploads"]
-        EmbedModule["Embeddings"]
-        EvalModule["Evaluations queue and orchestrator"]
-        AgentCluster["evaluations: job dispatch and harness adapter"]
-        SynthModule["Deterministic Layer 4 synthesis"]
-        AdminModule["Admin services"]
-    end
-
-    subgraph Shared_Libraries ["libs shared workspace packages"]
-        LibAuth["libs/auth"]
-        LibApiClient["libs/api-client"]
-        LibTypes["libs/types"]
-        LibUI["libs/ui"]
-        Harness["libs/evaluation-harness"]
-    end
-
-    subgraph Data_Storage ["Data infrastructure"]
-        Postgres[("PostgreSQL")]
-        Chroma[("ChromaDB")]
-        LocalFS["Local uploads filesystem"]
-    end
-
-    Caddy -->|API routes| Backend_Monolith
-    Caddy -->|Admin routes| AdminApp
-    Caddy -->|Other routes| FacultyApp
-
-    FacultyApp -.->|Imports| LibAuth
-    FacultyApp -.->|Imports| LibApiClient
-    FacultyApp -.->|Imports| LibTypes
-    FacultyApp -.->|Imports| LibUI
-    AdminApp -.->|Imports| LibAuth
-    AdminApp -.->|Imports| LibApiClient
-    AdminApp -.->|Imports| LibTypes
-    AdminApp -.->|Imports| LibUI
-    LibAuth -.->|Imports| LibApiClient
-    LibAuth -.->|Imports| LibTypes
-    LibApiClient -.->|Imports| LibTypes
-    LibUI -.->|Imports| LibTypes
-
-    Backend_Monolith --> APIRouter
-    Backend_Monolith --> AuthModule
-    Backend_Monolith --> DocModule
-    Backend_Monolith --> EvalModule
-    Backend_Monolith --> SynthModule
-    Backend_Monolith --> AdminModule
-    DocModule -->|Plain text chunks| EvalModule
-    DocModule -->|PDF artifacts| LocalFS
-    EmbedModule -->|Reference and scoped SLM vectors| Chroma
-    AgentCluster -->|RAG retrieval context| Chroma
-    EvalModule -->|Execute Layer 3| AgentCluster
-    EvalModule -->|Persist specialist outputs| Postgres
-    EvalModule -->|Trigger Layer 4 synthesis| SynthModule
-    SynthModule -->|Persist synthesis and matrix| Postgres
-    AuthModule -->|Session and user scopes| Postgres
-    AgentCluster -->|Prepared inputs| Harness
-    Harness -->|LLM runtime calls| CoreLLM["apps/server/core LLM client"]
-```
-
-### Current Repository Layout
+## Evaluation flow
 
 ```mermaid
 flowchart TD
-    Root["EquipED repository"] --> Apps["apps/"]
-    Root --> Libs["libs/"]
-    Root --> Infra["infra/caddy/ Caddyfile.dev"]
-    Root --> Storage["uploads/ and chroma_data/"]
-    Root --> Config["pnpm workspace and package configuration"]
-
-    Apps --> Faculty["faculty/ SPA: src/features, src/app"]
-    Apps --> Admin["admin/ SPA: src/features, src/app"]
-    Apps --> Server["server/ FastAPI modular monolith"]
-    Server --> Core["core/ infrastructure"]
-    Server --> Modules["modules/ domain packages"]
-    Server --> Alembic["alembic/ migrations"]
-    Server --> Scripts["scripts/ seeds and benchmarks"]
-    Server --> Tests["tests/ backend suites"]
-    Server --> Pyproject["pyproject.toml"]
-
-    Libs --> Harness["evaluation-harness/ specialist pipelines"]
-    Libs --> Auth["auth/ session, hooks and guards"]
-    Libs --> APIClient["api-client/ typed fetch and endpoints"]
-    Libs --> Types["types/ shared contracts"]
-    Libs --> UI["ui/ tokens, components and styles"]
+    Faculty[Faculty portal] --> API[FastAPI server]
+    Admin[Admin portal] --> API
+    API --> Intake[Document processing]
+    Intake --> Files[Configured document storage]
+    Intake --> SQL[(PostgreSQL)]
+    Intake --> Vectors[(Configured Chroma store)]
+    API --> Queue[Durable admission and preparation]
+    Queue --> Vectors
+    Queue --> Harness[Specialist harness]
+    Harness --> Model[Configured model transport]
+    Harness --> Public[ITSO public-reference tools]
+    Harness --> Results[Validated result persistence]
+    Results --> SQL
+    Results --> Synthesis[Deterministic matrix synthesis]
+    Synthesis --> SQL
 ```
 
-### Ingress, Routing & Same-Origin Topology
+A single worker/drainer uses database claims, heartbeats, and recovery to protect
+job ownership. Worker threads receive immutable context instead of shared ORM
+sessions. There is no external message broker or distributed execution tier.
 
-In development, `apps/faculty` and `apps/admin` function under a single unified origin managed by Caddy. Production must preserve this same-origin contract, but its static-serving and container topology remains deferred:
+New faculty jobs run one selected Layer 3 specialist. Outputs are persisted before
+terminal Layer 4 synthesis; recovery can resume synthesis from saved outputs.
+Required-agent failures fail the job. Explicit administrative and historical
+bundles retain their full or intentional-partial semantics. The document matrix
+progresses independently; its composite requires all four domains. Synthesis
+makes no further model judgments.
 
-1. **Caddy Dev Ingress (`infra/caddy/Caddyfile.dev`)**:
-   - Single-origin local ingress listening on `:3000` (configurable via `CADDY_DEV_ADDR`).
-   - Run application orchestration via `pnpm dev:all`, or only the proxy via `pnpm dev:proxy`. `pnpm dev` starts the two frontends only.
-   - Route precedence rules:
-     1. `/api` and `/api/*` → Proxied directly to FastAPI backend `127.0.0.1:8000`. Does not rewrite or strip paths, and does not fall back to SPA index on upstream errors.
-     2. `/admin-dev/*`, `/admin-assets/*`, `/admin`, `/admin/*`, `/matrix`, `/matrix/*`, `/evaluation-map`, `/evaluation-map/*` → Proxied to Admin Vite server `127.0.0.1:5174`.
-     3. All remaining paths (`/*`) → Proxied to Faculty Vite server `127.0.0.1:5173`.
-2. **Vite Namespacing & Assets**:
-   - Current Admin Vite uses `base: '/'` with a route-entry middleware, while the proxies retain `/admin-dev/*` matchers. Inspection identified this as an unresolved development asset-namespacing mismatch; the intended isolation from Faculty's `/src/*` graph must not be represented as already implemented or verified. This documentation update does not change routing code.
-   - Built assets for admin are partitioned under `assetsDir: 'admin-assets'`, ensuring no static asset collisions when proxied.
-3. **Internal Vite Dev Proxy (Container-Free / No-Caddy Fallback)**:
-   - If Caddy is not installed on the local machine, developers can open Faculty Vite directly at `http://localhost:5173`.
-   - `apps/faculty/vite.config.ts` includes fallback proxy rules forwarding `/api` to port 8000 and `/admin-dev`, `/admin-assets`, `/admin`, `/matrix`, `/evaluation-map` to port 5174.
-   - Direct access to `http://localhost:5174` serves as an isolated component-debug endpoint only; canonical navigation origin is Caddy (`:3000`) or Faculty proxy (`:5173`).
-4. **Shared Session Cookie & Cross-App Navigation**:
-   - A single `HttpOnly`, `SameSite=Lax`, `Path=/` session cookie (`equiped_session`) authenticates requests across both frontends and the backend monolith.
-   - Cross-application route transitions (e.g. redirecting an admin from `/login` or `/` to `/admin`, or redirecting unauthorized non-admins to `/dashboard`) use standard document navigation (`window.location.assign(...)`) rather than cross-app router imports.
-5. **Exact Preserved Routes**:
-   - **Faculty Routes** (`apps/faculty/src/app/router.tsx`):
-     - Public: `/login`, `/register`
-     - Authenticated root: `/` (redirects authenticated faculty to `/dashboard`, authenticated admin to `/admin`, unauthenticated to `/login`)
-     - Faculty protected: `/dashboard`, `/documents`, `/documents/$documentId/evaluation` (redirects to assigned specialist scoreboard), `/storage` (redirects to `/documents`), `/specialists/$agentId`, `/specialists/$agentId/$documentId`, `/evaluations`, `/evaluations/$id`, `/syllabus-alignment`, `/syllabus-alignment/$documentId`, `/syllabus-alignment/$documentId/report`, `/curriculum-alignment` (canonical), `/alignment` (redirects to `/curriculum-alignment`)
-   - **Admin Routes** (`apps/admin/src/app/router.tsx`):
-     - Authenticated root: `/` (redirects admin to `/admin`, non-admin to `/dashboard`, unauthenticated to `/login`)
-     - Admin protected: `/admin`, `/admin/users`, `/admin/ingest`, `/admin/references`, `/admin/curriculum-objectives`, `/admin/preferences`, `/admin/rubrics`, `/admin/model-validation`, `/admin/training-data`, `/admin/training-data/$agentId`, `/admin/synthesis/$documentId`, `/matrix`, `/matrix/$documentId`, `/evaluation-map`
-     - The Agent Prompts frontend feature and routes are removed. Backend prompt configuration and version storage remain independent of the portal.
+## Documents and retrieval
 
-### Current Official Local Topology
+PDF ingestion extracts selectable text and uses configured OCR. Chunks preserve
+source/page identities. Ingestion errors fail closed; reference ingestion becomes
+ready after successful vector writes.
 
-In local development, the topology operates as follows:
-- **Client Applications**: Host-native Vite dev servers running at `127.0.0.1:5173` (`apps/faculty`) and `127.0.0.1:5174` (`apps/admin`), exposed via Caddy at `http://localhost:3000`.
-- **Backend Server**: Host-native FastAPI server running at `127.0.0.1:8000`, invoked via `pnpm server:dev` or `cd apps && uv run --project server uvicorn server.main:app --reload --reload-dir server --reload-dir ../libs/evaluation-harness --port 8000`. Host and container development launchers watch both the server and editable harness to prevent stale specialist modules after library edits. Backend modules use absolute `server.*` imports; running from `apps/` ensures `apps/` is the Python import root.
-- **Relational Database**: Shared Neon PostgreSQL development database, configured via `DATABASE_URL` with required TLS. Developer backends use the least-privilege `equiped_app` runtime role and the pooled endpoint; migrations use a separately stored owner connection through the direct endpoint. The native PostgreSQL 18 Windows database and its local backups are retained as a point-in-time fallback, not a live replica. See [migration verification and PC fallback operations](infra/postgres/README.md). Other developer checkouts require an explicit environment cutover to the new Neon project.
-- **Vector Database**: Local Chroma persistence under repository-root `chroma_data/` by default; a self-hosted `CHROMA_HOST` and `CHROMA_PORT` select HTTP mode. Explicit `CHROMA_API_KEY`, `CHROMA_TENANT` and `CHROMA_DATABASE` select authenticated Chroma Cloud; its optional host is `api.trychroma.com`, with HTTPS enforced by the cloud client. Incomplete cloud configuration fails rather than selecting a local fallback. Migration copies and verifies existing IDs, vectors, stored text, metadata and distance space before cutover, preserving the local backup. The optional Compose Chroma service uses an older 0.5.0 image than the locked 1.5.9 client; its compatibility remains unverified. PostgreSQL migration does not populate or restore Chroma.
-- **Document Storage**: The current team development configuration uses the existing approved private R2 bucket. Without complete R2 configuration, the implementation falls back to local repository-root `uploads/`; local paths also support cached/downloaded artifacts and transactional crash-journaling. Database records alone do not restore file contents. Developers must retain the approved storage configuration; no inference infrastructure changes are implied by the database cutover.
+Institutional reference vectors are separate from Coordinator's document-scoped
+SLM collections. Its index is reused only when source identity and embedding
+model match. Retrieval returns bounded exact passages from the selected module;
+failed indexing or retrieval prevents execution. Other specialists retain their
+own source preparation.
 
-### Backend Modular Monolith Structure
+ITSO requires public search and source-page retrieval. Only public citation
+details or lesson/topic names enter queries. Pages are untrusted evidence;
+destination checks, transport bounds, and coverage reporting apply.
 
-The backend (`apps/server/`) is structured strictly as an in-process modular monolith:
-- `apps/server/core/`: Contains **infrastructure only** (database connection pools, settings, base exceptions, logging setup, LLM provider clients, and Chroma adapters). Core contains **zero business logic**.
-- `apps/server/modules/`: Domain packages containing their own routers, service facades, domain models, Pydantic schemas, and local errors:
-  - `documents`: SLM and reference PDF ingestion, OCR processing, text chunking, and journaled deletion.
-    Background reference ingestion resolves stored file locations to validated PDFs under the local upload root before extraction, downloading from the configured storage backend when no local copy exists. It stays `PROCESSING` through vector writes and commits `PROCESSED` only after embedding succeeds. Embedding or terminal-status failures trigger document-scoped, verified vector cleanup and `FAILED`; unverified cleanup preserves chunks and the local source for recovery.
-  - `embeddings`: Embedding pipeline and similarity retrieval for syllabi, curricula, institutional rubrics, policies, and document-scoped Coordinator SLM evidence. SLM indices use dedicated model-specific collections; canonical source/version checks prevent stale or cross-document evidence. Encoding and upserts use bounded batches capped by the Chroma client limit; completion is reported only after all batches succeed. Policy source health checks local/cache files or configured R2 existence without downloading; policy delivery retains its private-model gate.
-  - `evaluations`: DB-backed FIFO queue, CAS claim token admission, worker drain loop, Layer 3 agent dispatch, and crash recovery.
-  - Evaluation integration is flat under `evaluations`: `runner.py`, `dispatch.py` and `context.py` prepare authorized local inputs and maintain worker leases; `harness_adapter.py` translates explicit model/tool configuration. Specialist implementations and public-reference tools live outside the server. Database-backed envelope lookup lives in `rubrics/envelopes.py`.
-  - `synthesis`: Deterministically merges persisted specialist outputs into the progressive monitoring matrix and computes the composite after all four domains complete.
-  - `itso_assessments`: Read-only access to historical evidence-only ITSO assessments, including saved policy/attachment identities, verification records and integrity checks. It owns no current specialist execution or approval workflow.
-  - `curriculum`: Program curriculum structure and course-to-objective mappings.
-    Owns admin-authorized objective and mapping edits, optimistic edit versions, relational change history, and seed ownership markers. The Admin `curriculum-objectives` feature consumes these operations independently of the PDF Reference Library. Alignment snapshots the loaded reference versions before model execution.
-  - `alignment.curriculum`: Standalone checks of SLM coverage and depth against mapped course objectives.
-    Supports BSCS and BSInfoTech (legacy BSIT read alias), with processed owned SLMs, same-program courses and objectives, and a nonempty course map required before model execution.
-  - `alignment.syllabus`: Standalone advisory checks of SLM topics against syllabus Course Contents.
-  - `rubrics`: Rubric domain definitions, criteria trees, and versioned rubric configurations.
-  - `feedback`: Preference logging (accept/reject/edit) on agent outputs for administrative review.
-  - `admin`: User administration, prompt versioning, reference catalog ingestion, and model calibration history.
+PostgreSQL holds accounts, metadata, jobs, snapshots, results, feedback, and
+training records. Binaries use configured local/private object storage. Chroma
+holds vectors and associated text/metadata. A SQL backup alone does not recover
+binaries or vectors.
 
-`alignment/` is an organizational namespace for two independent server features. Each child owns its routes, validation, model-assisted evaluator and persistence. These standalone checks remain server-owned and separate from specialist agent evaluations. The faculty app mirrors this grouping under `src/features/alignment/{curriculum,syllabus}/`, with self-contained children and no sibling feature imports. Existing page/API URLs, table names and response contracts are unchanged by this grouping.
+## Alignment and compatibility
 
-The installable `libs/evaluation-harness` library owns the four specialist pipelines under `equiped_harness/agents/{sme,coordinator,gad,itso}`, prompts, semantic scoring/validation, evidence interpretation, specialist reporting, immutable snapshot hashing and public-reference tools. Shared `contracts/` and `runtime/` load no specialist pipelines; capability metadata and the package root resolve executable specialists lazily. Agent modules do not import sibling specialists. The public synchronous `evaluate(EvaluationRequest, client, ExecutionConfig, *, tools=None, control=None)` requires authorized prepared inputs and explicit clients/configuration. ITSO requires enabled public-reference tools; it creates a fresh bounded report inside its worker rather than trusting a supplied cached report. Secure HTTP transport lives in library `tools/`; network operations remain confined to explicit tool modules. There are no server, ORM, FastAPI, Chroma, environment-setting or implicit model-client dependencies in the library.
+Server `modules/alignment` contains independent curriculum and syllabus checks.
+They own their workflows, evaluators, and persistence and do not contribute
+specialist matrix scores.
 
-The server retains admission, authorization, active rubric selection and database scoring rules, owned document/OCR/storage access, local embedding/vector infrastructure, model resolution, durable CAS claims/heartbeats/recovery, relational identity checks, persistence and Layer 4 synthesis. It supplies approved local reference and policy data using portable contracts and specialist-owned selection plans. Workers receive immutable data, never database sessions or ORM-attached objects. The owning thread heartbeats while workers perform tools and model calls; cooperative cancellation prevents subsequent calls after lease loss, while running calls remain bounded and persistence independently checks ownership. No new queue, service or evaluation layer is introduced.
+Immutable snapshots and saved response contracts preserve historical meanings.
+Version identifiers describe compatibility contracts. Historical ITSO assessments
+remain server-owned read services; current scored ITSO uses standard evaluations.
+See the [harness API and compatibility guide](libs/evaluation-harness/README.md).
 
-Current Coordinator adapter 4 preparation builds/reuses a canonical-source SLM index through `modules/embeddings/slm_retrieval.py`, isolated from institutional references and bound to document/source/model identity. It prepares bounded exact passage rankings, with configured Cloud retrieval v2 using three rubric queries and up to 12 selected SLM passages per group at 800-character granularity. The harness selects bounded passages from the authoritative curriculum text supplied by the server. Citation IDs bind to original passage text without model retyping.
+## Access and deployment
 
-The active harness path is rubric adapter 4 / `coordinator_current.v6`, with three native groups: Organization & Presentation (5 criteria), Assessment (5 criteria), and qualitative C-01 alignment. `llm_rubric_guidance` guides the ten scored criteria. The model generates score, complete finding, and evidence together. There is no exhaustive counter/objective inventory, separate validation LLM, or final writer. C-01 is a qualitative 1–4 judgment grounded in SLM and curriculum passages, without objective count or denominator; it remains excluded from the official mean and PDFs. Each group permits one bounded repair. Invalid or missing reasoning, evidence, or summary after repair fails the whole evaluation, with no partial success or placeholder reasoning. A missing practice may receive a complete low score (1 or 2) without citation when reasonable.
+Both portals share an HTTP-only session cookie and server-side authorization.
+Faculty access is ownership-scoped. Cross-application navigation uses a common
+origin. Caddy routes APIs to FastAPI, administrative routes to Admin, and other
+application routes to Faculty. The Faculty Vite proxy provides a local fallback.
+The current Admin development module namespace and proxy matchers require
+deployment-specific verification; Compose files do not certify readiness.
 
-Historical v1–v5 contracts retain their saved meanings and integrity readers. Only adapter 4 executes; retired snapshots require a new evaluation. The obsolete extraction/review/writer execution pipelines are removed. The manifest default remains v2 for legacy callers, while adapter 4 is selected explicitly using immutable snapshots. The published adapter-4 rubric is activated through the transactional upgrade, preserving any unpublished draft and historical snapshots.
+Storage and inference are local/private by default. Explicitly authorized Chroma
+Cloud can hold reference and document-scoped vectors with text/metadata; this
+does not authorize external inference. Policy evidence retains its private-model
+residency gate.
 
-Historical ITSO saved-assessment ORM models, integrity readers and the existing `/evaluations/{evaluation_id}/assessment` route belong to `itso_assessments/`; source artifacts stay in documents. Synthesis consumes their verified historical result through the module's service. Existing table names, constraints, immutability listeners, response contracts and applied migrations are preserved. Pure historical ITSO result contracts remain with the specialist. Current ITSO scorecards read the standard `/evaluations/{evaluation_id}/results` endpoint. The faculty client uses the historical assessment reader only after an explicit `409 unsupported_version` response, preserving historical withheld scores and error handling without routing current results through that reader.
-
-### Layer 3 / Layer 4 Execution Lifecycle
-
-Execution follows an active supervisor pattern with deterministic terminal synthesis:
-1. **Submission & Admission**: A faculty submission creates a `SUBMITTED` evaluation job targeting exactly one permitted specialist: SME, Coordinator, GAD, or ITSO. The public endpoint does not admit `all` bundles.
-2. **Preprocessing**: The SLM is extracted and validated. A Coordinator job requires a ready curriculum; syllabus selection is optional. Missing required context fails closed rather than downgrading the faculty job to partial.
-3. **Layer 3 Specialist Analysis**: The supervisor executes only that job's selected specialist. Admin model-validation benchmarks may instead schedule an `all` bundle (four specialists, or three with explicit no-curriculum intent) in parallel; historical bundle jobs remain readable/executable.
-4. **Output Persistence**: SME, Coordinator, GAD and current ITSO scored outputs persist in `agent_results`. Historical ITSO adapter-2 evidence-only outputs remain in their typed assessment storage and retain their original contract.
-5. **Layer 4 Deterministic Synthesis**: Each successful faculty job merges its persisted domain result into the document's monitoring matrix. With fewer than four completed domains, the matrix remains `IN_PROGRESS` without a composite score; after all four, it computes the weighted composite and marks the matrix `COMPLETED`.
-6. **Completion**: The single-specialist evaluation job marks `COMPLETED` for its targeted domain, independently of matrix completion. Intentional `COMPLETED_PARTIAL` applies only to eligible benchmark/legacy bundles, never to unhandled failures. No automated evaluation layers run beyond Layer 4.
-
-Current ITSO uses explicit adapter 3 with the existing `llm_rubric_guidance` pipeline, frozen five-criterion rubric, standard `AgentResult` persistence and deterministic Layer 4 synthesis. Required credential-free public search runs inside the ITSO harness worker before its model requests. Queries use public bibliography details, including bounded numbered citations under Learning resources, falling back to explicitly labelled public lesson/topic names when no safely identifiable citations are detected; body passages and personal data are excluded. Parsed Learning resources citation metadata is separately labelled from retrieved page metadata and passages. Criterion 2 accepts named works without hyperlinks and follows the frozen relational rubric scoring rules and score descriptors. Bounded search and HTTPS retrieval supply available source passages and metadata for criteria 1 and 2, distinguishing topical context from citation verification. Required verification is recorded as true in reserved `adapter_request.itso_reference_verification` provenance, stripped before model-adapter resolution; neither request flags nor older false provenance can disable current execution. Enabled external access is checked at admission and execution, with no current search-key requirement. Missing required tools, unsafe execution, cancellation or no safe query fields fail execution. Per-reference provider errors are recorded with bounded recovery; a transient provider 5xx response receives at most one retry per request within the original tool deadline. Deadline exhaustion stops additional retrieval and retains earlier source evidence with explicit checked/skipped coverage. The harness requires its newly generated completed verification report to contain at least one usable source passage before model transport. Adapter 3 uses two fixed, role-separated rubric requests: criteria 1–2 compare locally selected module excerpts with independently retrieved public sources; criteria 3–5 use the module text. Both requests must succeed under a shared model deadline before the five-criterion result is persisted. They use the same frozen rubric and score response contract, with two captured generations; no new evaluation layer is added. Contradictory legacy internal-only templates are excluded. Model responses must cite usable sources in criteria 1 and 2 and report a bibliography that was not detected, with one bounded repair before failure. Bounded page-attempt outcomes remain in that report; deterministic result formatting preserves bounded source links, passages and coverage limits in criteria 1 and 2 while captured model generations retain the actual model responses and complete bounded tool report. Display omissions are explicit and do not discard the saved report. The tools use safe pinned HTTPS retrieval and bounded HTML parsing rather than a VM/Chromium prerequisite. Policy approval, attachment and fact-decision APIs are retired. Only adapter 3 executes ITSO evaluations. Retired v1/v2 snapshots are read-only; queued jobs bound to retired adapters fail with a request to submit a current evaluation. Historical snapshot contracts, integrity readers, applied migrations and persisted results are preserved. No additional evaluation layer or queue is introduced.
-
-ITSO document review uses validated advisory source findings from criteria 1–2 to inform faculty ownership, without treating source similarity, citation, or absence of a plagiarism finding as proof of ownership or permission. Criteria 3–5 have explicit relational scoring rules and four score descriptors. Decisive ownership/rights findings require a verbatim module quotation; incomplete evidence without a concrete concern supports provisional 3. Confidentiality scores below 4 require a quoted concern; no detected concern receives advisory 4 even with limited extracted-text coverage. The scorecard states actual reviewed excerpt coverage and excludes images and extraction omissions from its assurance. Teacher/student rights assess credit, permitted educational use, authorization or lawful basis for publication, and unfair waivers. Existing ingested local IP, privacy and academic-rights policies may support this review through the existing residency-gated retrieval path. Unavailable policy evidence is a disclosed limitation, not noncompliance or a launch prerequisite. Policy passages never enter public search queries. No additional workflow, model request group or evaluation layer is introduced.
-
-Coordinator adapter 4 explicitly selects immutable `coordinator_current.v6` snapshots while the manifest default remains v2 for legacy callers. New runs use ten LLM rubric judgments across Organization & Presentation and Assessment, plus qualitative C-01 (1–4) grounded in both SLM and curriculum evidence. C-01 has no objective count or denominator and remains outside the official mean and PDFs. Historical v1–v5 snapshots keep their original meaning; historical readers remain available, while retired adapters cannot execute. Current execution ranks bounded exact SLM and curriculum passages and requires complete reasoning, evidence, and summary in each native group. Failure after one bounded repair fails the evaluation without partial or placeholder reasoning success. Historical v3/v5 source inventory, coverage checks, and separate narrative writers describe retained legacy contracts, not adapter 4.
-
----
-
-## 3. Architecture Decisions & Status
-
-The monorepo structure, ingress proxying, package boundaries, and operational scripts are fully implemented. Genuinely deferred production, container, database, and advanced observability decisions remain explicitly cataloged:
-
-| Architecture Area | Status | Current Directive / Boundary |
-|---|---|---|
-| **Monorepo Layout** (`apps/*`, `libs/*`) | **Implemented** | Applications reside in `apps/` (`faculty`, `admin`, `server`); shared TypeScript libraries and the Python `evaluation-harness` reside in `libs/`. |
-| **Development Edge Ingress Proxy** | **Implemented** | Caddy reverse-proxy manages local single-origin routing (`:3000`) across frontends and API monolith using `infra/caddy/Caddyfile.dev`. Vite internal proxy serves as a container-free host fallback. Production must retain the same-origin route contract, but its static-serving topology is deferred. |
-| **Modular Monolith Backend** | **Implemented** | Backend relocated to `apps/server/` while preserving `server.*` import namespace with `apps/` as import root. Core contains infrastructure only. |
-| **Shared Auth & Session Cookie** | **Implemented** | HttpOnly session cookie (`equiped_session`) shared across same-origin paths (`Path=/`); server-authoritative RBAC. `@equiped/auth` handles session hydration and guards. |
-| **Local-vs-Full Container Dev** | **Deferred** | Host-native hybrid dev (local apps/faculty, apps/admin, apps/server + optional Chroma container via `pnpm infra:chroma`) remains current. Full-container local development workflows are deferred. Docker Compose is optional infrastructure only, not the canonical dev workflow. |
-| **Production Frontend Packaging** | **Deferred** | Whether production containers package Caddy + apps together or run separate static containers is deferred. Production static serving configuration remains deferred. |
-| **Production PostgreSQL Host** | **Deferred** | Choice between self-hosted Postgres, managed cloud instance, or Neon is deferred to production deployment phase. Dev uses the new shared Neon project; native Windows PostgreSQL remains a point-in-time fallback only. |
-| **Advanced Observability** | **Deferred** | Formal APM, OpenTelemetry, or distributed tracing beyond `/health`, `/ready`, and structured logging is deferred. |
-
----
-
-## 4. Ownership Boundaries & Dependency Direction
-
-Architectural hygiene is enforced by clear boundaries and strict dependency directions:
-
-```mermaid
-flowchart TD
-    subgraph Applications["Applications"]
-        Faculty["apps/faculty"]
-        Admin["apps/admin"]
-        Server["apps/server"]
-    end
-    subgraph Libraries["Shared libraries"]
-        Auth["libs/auth"]
-        APIClient["libs/api-client"]
-        Types["libs/types"]
-        UI["libs/ui"]
-        Harness["libs/evaluation-harness"]
-    end
-
-    Faculty --> Auth
-    Faculty --> APIClient
-    Faculty --> Types
-    Faculty --> UI
-    Admin --> Auth
-    Admin --> APIClient
-    Admin --> Types
-    Admin --> UI
-    Server --> Harness
-    UI --> Types
-    Auth --> Types
-    Auth --> APIClient
-    APIClient --> Types
-```
-
-1. **Libraries Must Never Import Applications**: No code under `libs/` may import from `apps/*`.
-2. **Library Dependency Hierarchy**:
-   - `libs/types` is the bottom dependency; it imports no other workspace package.
-   - `libs/ui` depends only on `libs/types` and styling assets. UI never imports `libs/api-client` or business logic.
-   - `libs/api-client` depends on `libs/types`.
-   - `libs/auth` provides session hooks and guards, depending on `libs/types` and `libs/api-client`.
-3. **No Cross-Feature Imports in Frontend Apps**:
-   - Inside `apps/*/src/features/`, feature modules (`features/A`) must never import from sibling features (`features/B`).
-   - Shared behavior or contracts proven across two or more features must be promoted to `libs/*` (or `src/shared/`).
-4. **Backend Module Encapsulation**:
-   - `apps/server/core/` is foundational infrastructure. Modules may import `core/`, but `core/` must never import domain modules (`apps/server/modules/*`).
-   - Modules communicate through public service facades or explicit data contracts. Never reach into another module's private database models or internals.
-   - Routers are thin HTTP adapters. A `service.py` may expose stable imports but contains no business rules; rules belong to cohesive units such as admission, workflow, commands, jobs, or results, while repositories own persistence and queries own reads.
-
----
-
-## 5. Code Writing Style & Engineering Standards
-
-All contributions must adhere to the practical code writing style grounded in repository configurations (`pyproject.toml`, `eslint.config.js`, `tsconfig.json`).
-
-### 5.1 Python & Backend Standards (Python 3.12)
-
-- **Target & Tooling**: Target Python 3.12+. Use `uv` for environment and package management. Enforce formatting and linting via Ruff (`line-length = 88`, rules: `E`, `F`, `I`, `UP`).
-- **Module Architecture**:
-  - Keep modules cohesive and focused.
-  - Public `service.py` files act as facades for domain capabilities, re-exporting operations while delegating to specialized internal units (`admission.py`, `workflow.py`, `commands.py`, `jobs.py`, `queries.py`, `repository.py`, and `results.py`) where those responsibilities exist.
-  - `router.py` files are strictly HTTP transport adapters (validating parameters, unwrapping session identity, handling status codes, returning schemas). No business logic belongs in routers.
-- **Typing & Modern Syntax**:
-  - Always use `from __future__ import annotations`.
-  - Use PEP 604 union syntax (`str | None`, `int | float`) instead of `Optional` or `Union`.
-  - Use built-in generic collections (`list[str]`, `dict[str, Any]`, `tuple[int, ...]`) and `collections.abc` (`Iterable`, `Sequence`, `Callable`) instead of typing module equivalents.
-- **SQLAlchemy & Thread Safety**:
-  - **Never share an ORM `Session` or attached ORM model instances across threads.**
-  - Pass precomputed, immutable primitives or frozen dataclasses into worker threads.
-  - When worker threads need database access, pass the `session_factory` and allow the worker to open, commit, and cleanly close its own local session.
-- **State & Error Semantics**:
-  - Error responses must be explicit, typed, and structured. Routers translate established domain exceptions into intentional HTTP status codes without leaking internal failures.
-  - Enforce fail-closed document ingestion: corrupted or non-parsable files must fail with clear diagnostics and leave no orphaned DB or disk records.
-
-### 5.2 TypeScript & Frontend Standards (React 18)
-
-- **Target & Tooling**: Use TypeScript 5.5+, React 18, Vite, and Tailwind CSS.
-- **Strict Colocation**:
-  - Colocate components, hooks, API callers, local types, and tests directly within their owning feature folder:
-    ```text
-    features/documents/
-    ├── api/           # API fetchers & TanStack queries
-    ├── components/    # Feature-specific UI components
-    ├── hooks/         # Feature-specific hooks
-    ├── types/         # Feature-specific TypeScript types
-    └── __tests__/     # Feature unit and component tests
-    ```
-  - Faculty evaluation components use shallow `workspace/`, `setup/`, `results/`, `review/`, and `exports/` groups, with their tests colocated under each group. `Scorecard.tsx` remains the composition component at the components root; hooks, API callers, types, and utilities remain feature-owned.
-- **Promotion Rule**: Do not place single-use utilities in shared folders. Code only moves to `shared/` or `libs/*` after proven reuse across two or more distinct features.
-- **No Cross-Feature Imports**: Enforced strictly. If Feature A requires data or views from Feature B, the dependency must be refactored into a shared library, routed via URL/shell, or orchestrated at the app shell level.
-- **Accessibility & Design System (WCAG 2.1 AA)**:
-  - Adhere to institutional design tokens from `DESIGN.md` (primary `#1b3b87`, canvas `#eef2f3`, readable typography).
-  - Flat elevation, high-contrast borders (`4.5:1` minimum for body and inputs).
-  - Explicit visible focus indicators on all interactive controls.
-  - Respect `@media (prefers-reduced-motion: reduce)` by disabling animations and replacing with instant or basic opacity shifts.
-  - No external component kits (no `shadcn/ui`, no generic SaaS component templates).
-
-### 5.3 Quality Gates & Minimal Diff Rule
-
-- **Minimal Diff Principle**: When implementing features or fixing defects, craft surgical diffs. Do not perform unrelated refactoring, drive-by reformatting, or blanket styling churn.
-- **Evidence Gate**: Every change must be verified using the narrowest affected tests first:
-  - Backend tests: `pnpm server:test` or `cd apps && uv run --project server pytest server/tests/<area>`
-  - Backend lint: `pnpm server:lint` or `cd apps && uv run --project server ruff check server`
-  - Backend format: `pnpm server:format`
-  - Frontend/lib tests: `pnpm test` (or `pnpm --dir apps/faculty test`, `pnpm --dir apps/admin test`, `pnpm --dir libs/<name> test`)
-  - Workspace typecheck: `pnpm typecheck`
-  - Workspace lint: `pnpm lint`
-  - Reverse proxy contract: `pnpm test:caddy`
-- **Reconciliation Invariant**: If code, migrations, tests, and documentation disagree, never resolve the discrepancy silently. Reconcile explicitly against product truth.
+See [setup](docs/setup.md), [operations](docs/operations.md), and
+[evaluation](docs/evaluation.md).

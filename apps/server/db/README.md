@@ -1,21 +1,20 @@
 # Database metadata and migrations
 
-`metadata.py` imports the domain-owned SQLAlchemy models and exposes their shared
-metadata for Alembic. Runtime engines and sessions live in `server.core.database`;
-active revisions live in `apps/server/alembic/versions/`, not this directory.
+`metadata.py` imports domain-owned SQLAlchemy models and exposes shared metadata
+for Alembic. Runtime engines and sessions live in `server.core.database`.
+Active revisions live in `apps/server/alembic/versions/`.
 
-Development uses the shared Neon database configured by DATABASE_URL. Backends
-use the least-privilege `equiped_app` role through the pooled endpoint with TLS.
-Migrations use a separate owner connection through the direct endpoint:
+From the repository root, apply migrations with:
 
-```bash
+```sh
 pnpm server:migrate
 ```
 
-Supply the owner URL privately for this command only; restore the runtime URL
-and clear any temporary exported DATABASE_URL before starting the backend.
-Do not run migrations with `equiped_app`, use the old Windows owner password for
-Neon, or commit connection credentials.
+Supply the deployment's migration-owner `DATABASE_URL` privately for this command.
+Restore the least-privilege runtime connection afterwards and clear temporary
+exported overrides. Managed PostgreSQL deployments may require a direct endpoint
+for migrations and a pooled endpoint for application traffic. Keep TLS and role
+permissions consistent with deployment policy.
 
-See the root `.env.example` and
-[migration verification and PC fallback operations](../../../infra/postgres/README.md).
+See [operations](../../../docs/operations.md) and
+[PostgreSQL backup guidance](../../../infra/postgres/README.md).
