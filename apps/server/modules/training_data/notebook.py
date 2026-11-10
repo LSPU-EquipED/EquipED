@@ -8,7 +8,7 @@ from pathlib import Path
 from server.modules.training_data.exceptions import NotebookTemplateError
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
-TEMPLATE_PATH = _PROJECT_ROOT / "docs" / "colab" / "dpo_training_template.ipynb"
+TEMPLATE_PATH = _PROJECT_ROOT / "colab" / "dpo_training_template.ipynb"
 
 _LINKS_CELL = 1
 _DOWNLOAD_PLACEHOLDER = 'DOWNLOAD_URL = "PASTE_DOWNLOAD_URL_HERE"'

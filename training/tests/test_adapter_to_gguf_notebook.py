@@ -1,4 +1,4 @@
-"""Offline checks for docs/colab/adapter_to_gguf_template.ipynb.
+"""Offline checks for colab/adapter_to_gguf_template.ipynb.
 
 The notebook needs Colab (and the llama.cpp converter) to run for real; these
 tests cover what can be checked offline: structure, that every code cell
@@ -18,7 +18,6 @@ import pytest
 
 NOTEBOOK = (
     Path(__file__).resolve().parents[2]
-    / "docs"
     / "colab"
     / "adapter_to_gguf_template.ipynb"
 )

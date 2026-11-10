@@ -1,42 +1,41 @@
 # Reviewed training packages
 
-This is an implemented option within the existing Admin training workflow.
-An active approved administrator selects a reviewed package locally; readiness
-and new notebook jobs then copy its exact contents. No new table is required.
+An authorized administrator can select a reviewed package as the active
+training source for an agent. The importer checks package structure, hashes,
+sizes, pair identities, agent identity, and provenance. These checks establish
+integrity and consistency; they do not establish that labels are correct.
 
-Apply migration `20261019_0001` before starting the updated backend. It adds
-the active-source flag and index where absent, or adopts the earlier schema
-without replacing existing job snapshots. It follows the current migration
-chain rather than reusing the older, conflicting revision ID.
+## Package contents
 
-The import package directory must contain `pairs.jsonl`, `provenance.jsonl`
-and `manifest.json`. Preserve their exact UTF-8 bytes. The importer verifies
-hashes, sizes, pair identities, agent identity and provenance. These checks
-do not establish that the proposed labels are correct; review happens first.
+The package directory contains `pairs.jsonl`, `provenance.jsonl`, and
+`manifest.json`. Preserve the package bytes. Review provenance and labels
+before importing. Synthetic target edits must remain labeled synthetic;
+unmodified model outputs are not expert reference labels.
 
-From the repository root, with `apps` on the Python import path:
+## Preview and apply
 
-```powershell
-apps/server/.venv/Scripts/python.exe -m server.scripts.import_training_source --agent gad --admin-id ADMIN_UUID --package-dir PACKAGE_DIRECTORY
+From the repository root, with the server application environment available:
+
+```sh
+cd apps
+uv run --project server python -m server.scripts.import_training_source \
+  --agent <sme|coordinator|gad|itso> --admin-id <ADMIN_UUID> \
+  --package-dir <PACKAGE_DIRECTORY>
 ```
 
-The default is a preview. Apply using the same arguments plus `--apply`
-and `--confirm-target TARGET_FINGERPRINT` from that preview. The fingerprint
-identifies the database without exposing credentials. A repeated import of
-the same active package does not create another source.
+The default is a preview. Review its validation and target fingerprint. To
+apply, repeat the command with `--apply --confirm-target <FINGERPRINT>`.
+Repeatedly importing the same active package does not create another source.
 
-Restart the backend, open Admin Training Data, select GAD, and check the
-pair count before selecting Start Training Run and Download Notebook. Old
-notebooks retain their own frozen data and links; download a new notebook
-for the new run. No token-bearing links should be committed or shared.
+To restore the feedback exporter as the active source, preview with
+`--restore-feedback`, then apply with `--apply --confirm-target
+<FINGERPRINT>`. Source selection does not delete feedback or prior training
+snapshots. Invalid active packages return an error rather than silently
+switching to another source.
 
-To restore the normal feedback exporter, use `--restore-feedback` instead of
-`--package-dir`, preview first, then apply with the confirmed target. This
-changes source selection without deleting feedback or historical packages.
-Invalid active packages return an explicit error rather than exporting
-different feedback silently.
+After changing the source, create a new training job and download a new
+notebook. Existing notebooks retain their frozen training data. Keep
+token-bearing download links private.
 
-For the GAD-02 pilot, only GAD-02 has reviewed synthetic target edits. Other
-criterion sections retain genuine Base outputs as stability controls, not
-expert reference labels. Keep matched lesson variants together when assessing
-internal splits; use the six reserved topic-held-out SLMs for external testing.
+For split and evaluation guidance, see the [training workflow](training.md)
+and [adapter evaluation guide](../training/evaluating-an-adapter.md).

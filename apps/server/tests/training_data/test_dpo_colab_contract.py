@@ -1,4 +1,4 @@
-"""CPU-only static and contract tests for docs/colab/dpo_training_template.ipynb.
+"""CPU-only static and contract tests for colab/dpo_training_template.ipynb.
 
 Extracts the package-validation and adapter-packaging notebook cells and runs them
 without network or GPU access. This verifies compatibility with the package manifest
@@ -20,7 +20,7 @@ import pytest
 from server.modules.training_data.contracts import DpoPackageManifest
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-NOTEBOOK_PATH = REPO_ROOT / "docs" / "colab" / "dpo_training_template.ipynb"
+NOTEBOOK_PATH = REPO_ROOT / "colab" / "dpo_training_template.ipynb"
 
 
 def _load_notebook() -> dict:

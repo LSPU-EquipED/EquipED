@@ -10,7 +10,7 @@ from typing import Any
 from server.modules.training_data.training_summary import extract_training_summary
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-NOTEBOOK_PATH = REPO_ROOT / "docs" / "colab" / "dpo_training_template.ipynb"
+NOTEBOOK_PATH = REPO_ROOT / "colab" / "dpo_training_template.ipynb"
 
 LOG_HISTORY = [
     {

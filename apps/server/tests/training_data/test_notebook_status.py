@@ -9,7 +9,7 @@ import types
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-NOTEBOOK_PATH = REPO_ROOT / "docs" / "colab" / "dpo_training_template.ipynb"
+NOTEBOOK_PATH = REPO_ROOT / "colab" / "dpo_training_template.ipynb"
 START = "# --- status helper (tested) ---"
 END = "# --- end status helper ---"
 

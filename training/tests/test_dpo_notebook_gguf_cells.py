@@ -21,9 +21,9 @@ from pathlib import Path
 
 import pytest
 
-DOCS_COLAB = Path(__file__).resolve().parents[2] / "docs" / "colab"
-TRAINING_NOTEBOOK = DOCS_COLAB / "dpo_training_template.ipynb"
-STANDALONE_NOTEBOOK = DOCS_COLAB / "adapter_to_gguf_template.ipynb"
+COLAB_DIR = Path(__file__).resolve().parents[2] / "colab"
+TRAINING_NOTEBOOK = COLAB_DIR / "dpo_training_template.ipynb"
+STANDALONE_NOTEBOOK = COLAB_DIR / "adapter_to_gguf_template.ipynb"
 
 FIRST_NEW_CELL = 12
 UPLOAD_CELL = 11

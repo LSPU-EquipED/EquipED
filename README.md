@@ -1,14 +1,13 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/branding/equiped-lspu-dark.svg" />
-    <img src="docs/assets/branding/equiped-lspu.svg" alt="EquipED × LSPU" width="560" />
+    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/equiped-lspu-dark.svg" />
+    <img src="assets/branding/equiped-lspu.svg" alt="EquipED × LSPU" width="560" />
   </picture>
 </p>
 
 <p align="center">
-  Institutional review of self-paced learning modules.<br />
-  Laguna State Polytechnic University · Santa Cruz Campus<br />
-  College of Computer Studies
+  Institutional review of self-paced learning modules<br />
+  Laguna State Polytechnic University · Santa Cruz Campus · College of Computer Studies
 </p>
 
 <p align="center">
@@ -22,7 +21,7 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#common-commands">Commands</a> ·
-  <a href="PRODUCT.md">Product</a> ·
+  <a href="docs/README.md">Documentation</a> ·
   <a href="ARCHITECTURE.md">Architecture</a> ·
   <a href="DESIGN.md">Design system</a>
 </p>
@@ -31,322 +30,160 @@
 
 EquipED is an advisory, multi-agent evaluation system for Self-Paced Learning
 Modules (SLMs) at **Laguna State Polytechnic University – Santa Cruz Campus,
-College of Computer Studies**.
+College of Computer Studies**. It helps faculty and CID reviewers inspect
+instructional materials against institutional rubrics and references.
 
-It helps faculty and CID staff review SLMs against institutional rubrics while
-keeping human review authoritative. Current academic scope is limited to
-**BSInfoTech** and **BSCS**.
+The supported programs are **BSCS** and **BSInfoTech**. Generated scores,
+findings, and recommendations support human review; they do not constitute
+institutional approval.
 
 ## What it does
 
-- Accepts faculty-owned SLM PDF uploads and extracts selectable or scanned text.
-- Runs one selected specialist (SME, Program Coordinator, GAD, or ITSO) per
-  faculty evaluation. Completed specialist results progressively fill the
-  monitoring matrix; its composite score appears after all four domains complete.
-- Uses LSPU CCS curriculum, syllabus, rubric, and approved policy documents as
-  local reference evidence. SLMs are direct evaluation input and are never
-  embedded into ChromaDB.
-- Requires a faculty-confirmed program for submission. Coordinator evaluations
-  additionally require a ready curriculum; other specialist jobs complete
-  independently. The old partial-without-curriculum mode is not used for
-  faculty submissions; it remains for historical jobs and Admin model-validation
-  benchmarks.
-- Provides Admin workflows for reference/policy ingestion, user management,
-  prompt history, preference logs, monitoring, and model validation.
-- Exports truthful client-side PDF scorecards.
+- **Module management:** upload faculty-owned PDFs, extract selectable text, and
+  process scanned pages with configured English and Filipino OCR.
+- **Specialist evaluation:** run one permitted specialist per faculty submission
+  and inspect its saved rubric scores, findings, and supporting evidence.
+- **Alignment checks:** compare modules with selected syllabi or mapped curriculum
+  objectives through separate, non-scoring workspaces.
+- **Review and history:** inspect exact saved runs, record criterion feedback,
+  and create new evaluations while retaining previous results.
+- **Monitoring and exports:** progressively fill the institutional monitoring
+  matrix and export the original specialist forms and approval sheet.
+- **Administration:** manage accounts, institutional references, rubric revisions,
+  curriculum objectives, feedback, and model training and validation.
 
-Generated results are advisory only and do not replace institutional review or
-approval.
+## Specialist reviews
 
-## Data and deployment model
+| Specialist | Review focus |
+| --- | --- |
+| Subject Matter Expert (SME) | Instructional content, organization, presentation, and assessment. |
+| Program Coordinator | Organization, presentation, and assessment, plus a separate curriculum-alignment supplement. |
+| Gender and Development (GAD) | Gender sensitivity, representation, and inclusive language. |
+| Innovation and Technology Support Office (ITSO) | Source use, citations, ownership, confidentiality, and teacher/student rights. |
 
-Development currently uses local frontend/backend processes, configured document
-storage, local or explicitly configured Chroma Cloud, and a shared Neon PostgreSQL database for team work.
-Neon is temporary development infrastructure only.
+Coordinator requires a ready curriculum for the confirmed program. It uses
+SLM-scoped embeddings to select bounded, exact evidence passages. ITSO requires
+public-reference search and retrieved source passages for its source checks;
+queries use public citation details or lesson/topic names rather than private
+body passages. Missing evidence and retrieval limits remain visible in results.
 
-Use the project's least-privilege runtime connection with required TLS. The
-Windows PostgreSQL database is retained as a point-in-time fallback, not a live
-replica; see [migration verification and fallback operations](infra/postgres/README.md).
+A completed specialist run fills its domain in the monitoring matrix. The
+weighted composite appears after all four domains complete: SME 35%, Coordinator
+30%, GAD 20%, and ITSO 15%. Coordinator's curriculum-alignment supplement is
+excluded from the official average, composite, and institutional scorecard PDF.
 
-The production target is an institution-controlled LSPU server with local
-PostgreSQL, uploads, and ChromaDB. Policy evidence delivery to an LLM is
-disabled by default and must remain local/residency-gated when enabled.
+## Evaluation workflow
 
-## Prerequisites
+1. Upload an owned SLM PDF and wait for document processing to finish.
+2. Open a permitted specialist workspace, confirm the program, and select any
+   required institutional reference.
+3. Start the evaluation and follow its server-reported progress.
+4. Inspect the saved scores, reasoning, quotations, source checks, and limitations.
+5. Record review feedback or export the institutional form. Re-evaluation creates
+   another run without replacing its history.
 
-- Python 3.12 and [uv](https://docs.astral.sh/uv/)
-- Node 20, Corepack, and pnpm 9.12.0
-- [Caddy](https://caddyserver.com/) for the optional unified `localhost:3000` origin; without it, use the Faculty Vite proxy at `localhost:5173`
-- Docker Compose only when using optional container services (such as ChromaDB via `pnpm infra:chroma`)
-- Tesseract with `eng` and `fil` language packs to process scanned PDFs
-  (required in production; optional for text-only development)
+Standalone Syllabus check and Curriculum check remain separate from specialist
+scoring. See the [evaluation guide](docs/evaluation.md) for prerequisites and how
+to interpret each specialist's output.
+
+## Technology and structure
+
+| Area | Technology |
+| --- | --- |
+| Faculty and Admin portals | React 18, TypeScript, Vite, and shared UI components. |
+| Backend | Python 3.12 and a single-process FastAPI modular monolith. |
+| Specialist harness | Independent Python package under `libs/evaluation-harness`. |
+| Relational data | PostgreSQL with SQLAlchemy and Alembic migrations. |
+| Vector retrieval | Configured local/private ChromaDB or explicitly authorized Chroma Cloud. |
+| Document processing | PDF extraction and Tesseract OCR. |
+| Workspace tools | pnpm 9.12.0, uv, and optional Caddy/Docker services. |
+
+The server owns authorization, source preparation, durable jobs, persistence,
+and deterministic synthesis. The harness owns specialist prompts, evidence
+interpretation, scoring, validation, and public-reference tools. See
+[architecture](ARCHITECTURE.md) for the component boundaries and data flow.
 
 ## Quick start
 
-From the repository root, for a new checkout only (do not overwrite an existing `.env`):
+Use Python 3.12, Node.js 20, pnpm 9.12.0, and uv. Scanned PDFs also require
+Tesseract with `eng` and `fil` language data. Caddy provides the optional unified
+local origin; Docker is optional.
 
-```bash
-cp .env.example .env
+From the repository root, create `.env` only if it does not already exist:
+
+```sh
+test -e .env || cp .env.example .env
 uv sync --project apps/server
 pnpm install
 ```
 
-On Windows PowerShell, replace `cp .env.example .env` with:
+Configure the database, approved model endpoint, email delivery, and document and
+vector storage in `.env`. ITSO requires authorized public-reference access with
+`ITSO_VERIFICATION_ENABLED=true`. Use a separate migration-owner database
+connection when applying schema upgrades, then restore the runtime connection.
+The [setup guide](docs/setup.md) includes the configuration details and
+PowerShell equivalent.
 
-```powershell
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-```
-
-Configure `.env` with the development database URL, Gmail SMTP account, and
-existing inference connection before running the app. Use the privately shared
-Neon runtime URL (`equiped_app`, pooled endpoint, `sslmode=require`); do not
-substitute a Neon API key or the migration-owner URL. Other developer laptops
-need internet access, not Tailscale or an always-on Windows PC, to reach Neon.
-The inference connection is independent of the database; preserve its approved
-endpoint, model, and adapter configuration. Add OCR settings only when scanned
-PDF support is required. Do not commit credentials or print connection URLs.
-
-Document binaries and reference vectors are separate from PostgreSQL. Configure
-the existing approved R2 bucket privately to read shared documents; a new local
-`uploads/` directory does not contain the migrated files. Chroma uses local
-persistence by default. A self-hosted `CHROMA_HOST`/`CHROMA_PORT` selects HTTP mode;
-`CHROMA_API_KEY`, `CHROMA_TENANT`, and `CHROMA_DATABASE` select managed Chroma Cloud
-(optional host `api.trychroma.com`). Cloud storage of institutional vectors and
-their text requires explicit deployment authorization. Preserve existing vector data;
-do not treat an empty Chroma store as a completed database migration.
-
-For an authorized cloud cutover, back up local Chroma and pause vector writes.
-With cloud credentials configured, run from `apps/`:
+Start the application:
 
 ```sh
-uv run --project server python -m server.scripts.migrate_chroma_cloud /absolute/path/to/chroma-backup
-uv run --project server python -m server.scripts.migrate_chroma_cloud /absolute/path/to/chroma-backup --apply
-uv run --project server python -m server.scripts.migrate_chroma_cloud /absolute/path/to/chroma-backup --verify-only
-```
-
-The default command inventories without writes. Copying preserves stored vectors,
-text, metadata, IDs and distance space without re-embedding. Identical partial copies
-can resume; conflicting destination data is refused. Optional `--report` writes a
-count/hash manifest without source text or credentials. The tool holds one
-collection in memory and uses bounded network batches. Verify application retrieval
-and reload the backend for cutover; retain the local source and backup for rollback.
-
-### Database migrations
-
-`equiped_app` intentionally cannot run schema migrations. Temporarily supply
-the separate Neon owner URL through the **direct** endpoint while running
-`pnpm server:migrate`; restore the runtime URL before starting the backend.
-Keep both URLs private. An exported `DATABASE_URL` overrides the `.env` value,
-so clear any temporary owner override afterwards. The old Windows
-`equiped_owner` credentials do not apply to the new Neon project.
-
-Registration and account-status emails use Gmail SMTP. Set `SMTP_USERNAME` and
-`EMAIL_FROM` to the sender account, then place a Google App Password—not the
-Gmail account password—in `SMTP_PASSWORD`. The application defaults already use
-`smtp.gmail.com:587` with STARTTLS.
-
-### Starting Development
-
-Run the application processes locally; Docker PostgreSQL is not needed for the
-shared Neon development database.
-
-**Recommended: one terminal for application processes**
-
-```bash
 pnpm dev:all
 ```
 
-This starts Faculty, Admin, FastAPI, and the optional Caddy runner. It does not
-start Chroma. Without Caddy installed, use `http://localhost:5173` instead of
-port 3000. Set `APP_PUBLIC_URL` to the chosen origin.
-
-**Alternatively: separate terminals**
-```bash
-# Terminal 1: Start FastAPI backend
-pnpm server:dev
-
-# Terminal 2: Start Frontends (Faculty Vite and Admin Vite)
-pnpm dev
-
-# Terminal 3: Optional unified localhost:3000 proxy (requires Caddy)
-pnpm dev:proxy
-```
-
-**Optional Docker Compose workflows (not the shared development topology)**
-
-The explicit development/production Compose files remain available. The dev
-file starts another PostgreSQL container and configures the backend to use Chroma
-over HTTP. It is not a drop-in alternative to the native/shared Neon workflow:
-container-local `localhost` is not the Windows host, additional application
-settings need forwarding, and the bundled Chroma image (0.5.0) differs from the
-locked client (1.5.9). These configuration issues were not repaired by the
-database migration. Do not run the full stack to initialize or restore team data.
-
-```bash
-# Development (with hot-reloading, preserving local ./uploads and ./chroma_data)
-pnpm docker:dev        # or: docker compose -f docker-compose.dev.yml up
-pnpm docker:dev:build  # rebuild dev containers
-pnpm docker:dev:down   # stop dev containers
-
-# Production (Caddy reverse proxy + static SPAs + production FastAPI single worker)
-pnpm docker:prod       # or: docker compose -f docker-compose.prod.yml up
-pnpm docker:prod:build # rebuild production containers
-pnpm docker:prod:down  # stop production containers
-```
-
-The unified development origin is available at <http://localhost:3000> (or <http://localhost:5173> when running without Caddy):
-- Faculty Portal: <http://localhost:3000/>
-- Admin Workstations: <http://localhost:3000/admin>
-- Monitoring Matrix: <http://localhost:3000/matrix>
-- Evaluation Map: <http://localhost:3000/evaluation-map>
-- API: <http://localhost:3000/api/v1/...> (proxied to port 8000)
-- FastAPI Docs: <http://localhost:8000/docs> (direct backend endpoint)
-
-### Route Ownership & Port Allocations
-
-| Service | Port / Address | Route Ownership / Role |
-| --- | --- | --- |
-| **Caddy Dev Ingress** | `:3000` (default) | Single-origin ingress (`http://localhost:3000`). Handles `/api/*` -> FastAPI, `/admin-assets/*`, `/admin/*`, `/matrix/*`, `/evaluation-map/*` -> Admin Vite, and all other paths -> Faculty Vite. |
-| **FastAPI Monolith** | `127.0.0.1:8000` | Backend API routes (`/api/*`, `/health`, `/ready`, `/docs`). |
-| **Faculty Vite** | `127.0.0.1:5173` | Faculty dashboard, document intake, evaluations history, and public auth. |
-| **Admin Vite** | `127.0.0.1:5174` | Admin workstations (`/admin/*`), Monitoring Matrix (`/matrix/*`), Evaluation Map (`/evaluation-map/*`). Component-debug endpoint only; canonical navigation origin is Caddy `:3000` or Faculty proxy `:5173`. |
-| **ChromaDB** | Host port `8001` | Local vector store (started separately via `pnpm infra:chroma` or Docker Compose). |
-
-### Fallback Commands & Individual Dev Servers
-
-If `caddy` is not installed on your host, you can run individual services independently:
-
-```bash
-# Start backend
-pnpm server:dev
-
-# Start Faculty portal (with Vite internal dev proxy)
-pnpm dev:faculty  # http://localhost:5173
-
-# Start Admin portal
-pnpm dev:admin    # http://localhost:5174
-
-# Run Caddy dev proxy alone (when Caddy is installed)
-pnpm dev:proxy
-
-# Start vector store container independently
-pnpm infra:chroma
-```
-
-When running without Caddy, open the faculty portal at <http://localhost:5173> and the admin portal at <http://localhost:5173/admin> (proxied to admin Vite on port 5174 via Vite's dev proxy). Direct access to port 5174 is intended solely as a component-debug endpoint, not a canonical navigation origin; cross-app relative redirects and session flows rely on the canonical dev origin provided by Caddy (`:3000`) or the Faculty proxy (`:5173`). The direct FastAPI documentation is available at <http://localhost:8000/docs>.
-
-### How backend commands run
-
-The FastAPI application is imported as `server.main:app`, and backend modules
-use absolute `server.*` imports. Always standardize on running backend commands
-from `apps/` (or via root package scripts) so `apps/` is the Python package import root:
-
-```bash
-pnpm server:dev
-# or directly:
-cd apps && uv run --project server uvicorn server.main:app --reload --reload-dir server --reload-dir ../libs/evaluation-harness --host 127.0.0.1 --port 8000
-```
-
-Both development launchers watch the server and the editable evaluation harness.
-Restart an already running development command after changing its reload paths;
-otherwise harness edits outside `apps/` can leave stale modules in memory.
-
-> Note: Running `uv run --project apps/server` directly from the repository root
-> does **not** preserve `apps/` as the package import root for absolute `server.*`
-> imports. Backend commands must be executed via root `pnpm server:*` scripts or
-> with `cd apps && uv run --project server ...`.
+Open <http://localhost:3000> with Caddy, or <http://localhost:5173> through the
+Faculty Vite proxy when Caddy is unavailable. FastAPI's interactive documentation
+is at <http://localhost:8000/docs> while the backend is running.
 
 ## Common commands
 
 | Task | Command |
 | --- | --- |
-| Start application dev services (Faculty, Admin, Server, Caddy) | `pnpm dev:all` |
-| Start both frontend dev servers only | `pnpm dev` |
-| Start Caddy dev reverse proxy | `pnpm dev:proxy` |
-| Start Faculty dev server | `pnpm dev:faculty` |
-| Start Admin dev server | `pnpm dev:admin` |
-| Start local ChromaDB container | `pnpm infra:chroma` |
-| Start the backend alone | `pnpm server:dev` |
-| Run backend tests | `pnpm server:test` (or `cd apps && uv run --project server pytest`) |
-| Lint backend | `pnpm server:lint` (or `cd apps && uv run --project server ruff check server`) |
-| Format backend | `pnpm server:format` |
-| Run migrations with a temporary direct Neon owner URL | `pnpm server:migrate` |
-| Run all frontend/lib tests | `pnpm test` |
-| Run Caddy contract test | `pnpm test:caddy` |
-| Lint all workspace packages | `pnpm lint` |
-| Build all frontend apps | `pnpm build` |
-| Typecheck entire workspace | `pnpm typecheck` |
-| Check API liveness | `curl http://localhost:8000/health` |
-| Check runtime readiness | `curl http://localhost:8000/ready` |
+| Start both portals, backend, and optional proxy | `pnpm dev:all` |
+| Start both frontend servers | `pnpm dev` |
+| Start backend | `pnpm server:dev` |
+| Start Caddy proxy | `pnpm dev:proxy` |
+| Apply database migrations with the owner connection | `pnpm server:migrate` |
+| Run frontend/library tests | `pnpm test` |
+| Run backend and harness tests | `pnpm server:test` |
+| Run harness tests | `pnpm harness:test` |
+| Lint frontend workspace / backend | `pnpm lint` / `pnpm server:lint` |
+| Typecheck / build frontend workspace | `pnpm typecheck` / `pnpm build` |
 
-`/health` is a liveness check. `/ready` verifies configured runtime
-dependencies; it can return `503` when a required dependency is unavailable.
-
-## Local storage and optional Docker services
-
-By default, local runtime data is anchored at the repository root:
-
-- `uploads/` — uploaded PDF files
-- `chroma_data/` — local Chroma persistence
-
-The configured R2 backend stores document binaries in the approved private
-bucket; local paths may also be used for cached/downloaded artifacts. The shared
-relational database is Neon, not a repository-local SQLite file. PC fallback
-dumps do not protect new Neon writes or replace R2/Chroma backups.
-
-Docker is optional for local infrastructure and smoke testing; it is not the
-canonical full-stack development workflow. To run the optional Chroma service:
-
-```bash
-docker compose -f docker-compose.dev.yml up --build chroma
-```
-
-The dev Compose file defines `db`, `chroma`, `server`, `faculty`, `admin`, and
-`caddy`; there is no `server-smoke` service. Use host-native application processes
-for the shared development workflow. Do not assume the Chroma service is
-compatible with the installed client without resolving the version mismatch.
-Refer to `docker-compose.dev.yml` for development infrastructure ports and environment overrides.
+Backend commands use the root scripts or run from `apps/` so `server.*` imports
+resolve correctly. Compose configuration and deployment constraints are covered
+in [operations](docs/operations.md).
 
 ## Repository guide
 
-```text
-apps/server/     FastAPI modular monolith
-apps/faculty/    Faculty portal React Vite app (port 5173)
-apps/admin/      Admin portal React Vite app (port 5174, base /)
-libs/            Shared packages (types, api-client, ui, auth, evaluation-harness)
-openspec/specs/  Historical specification references
-docs/            Product and architecture reference material
-uploads/         Local uploaded documents
-chroma_data/     Local vector-store data
-```
+| Path | Contents |
+| --- | --- |
+| [`apps/faculty/`](apps/faculty/) | Faculty portal and its self-contained features. |
+| [`apps/admin/`](apps/admin/) | Administrative workspaces and monitoring. |
+| [`apps/server/`](apps/server/) | FastAPI application, domain modules, migrations, and backend tests. |
+| [`libs/`](libs/) | Shared frontend packages and the evaluation harness. |
+| [`colab/`](colab/) | Training and adapter-conversion notebook templates. |
+| [`training/`](training/) | Standalone training, serving, and adapter-validation tools. |
+| [`infra/`](infra/) | Proxy, container, and PostgreSQL operating resources. |
+| [`assets/branding/`](assets/branding/) | README branding for light and dark backgrounds. |
+| [`docs/`](docs/) | Evaluation, setup, operations, training, and component guides. |
 
-Key entry points:
+## Data and deployment
 
-- `apps/server/main.py` — FastAPI application
-- `apps/faculty/src/main.tsx` — Faculty app bootstrap
-- `apps/faculty/src/app/router.tsx` — Faculty route tree
-- `apps/admin/src/main.tsx` — Admin app bootstrap
-- `apps/admin/src/app/router.tsx` — Admin route tree
-- `libs/` — shared TypeScript packages and the pure Python evaluation harness
-- `libs/evaluation-harness/equiped_harness/evaluation.py` — `EvaluationRequest` and `evaluate(request, client, ExecutionConfig)` for all four specialist pipelines; `apps/server/modules/evaluations/harness/` prepares evidence and supplies transport/config. See the [harness guide](libs/evaluation-harness/README.md).
+Access is authenticated and ownership-scoped. Institutional documents, vectors,
+and inference remain within explicitly authorized systems. Cloud storage does
+not authorize external inference. Public-reference checks exclude private body
+passages and personal data from queries.
 
-Run independent harness tests with `pnpm harness:test`. The server UV lock installs
-the local package; Docker copies it before frozen dependency installation. Use UV
-0.11.25 or newer (native build backend `uv_build>=0.11.25,<0.12`).
-Admin model validation only updates shared-contract imports in this extraction;
-its workflow, API, and persisted schema are unchanged.
+PostgreSQL records, document binaries, and vector data are separate assets and
+need separate recovery procedures. The deployment target is institution-controlled
+infrastructure. Included Compose files require deployment-specific configuration
+and verification; see [operations and deployment](docs/operations.md).
 
-## Documentation and authority model
+## Documentation
 
-- [Product requirements](PRD.md)
-- [Architecture overview](ARCHITECTURE.md)
-- [Historical OpenSpec material](openspec/specs/)
-- [Live API documentation](http://localhost:8000/docs)
-
-Executable behavior is authoritative through current code, API and schema
-contracts, migrations, and tests. `PRODUCT.md` and `PRD.md` govern product intent,
-roles, scope, and constraints; `ARCHITECTURE.md` governs system structure, and
-`DESIGN.md` governs design-system and UX direction.
-
-OpenSpec material is retained for historical reference only. It is not an
-implementation contract, required workflow, or source of current authority.
+- [Product overview](PRODUCT.md) and [requirements](PRD.md)
+- [Architecture](ARCHITECTURE.md) and [design system](DESIGN.md)
+- [Evaluation workflow](docs/evaluation.md)
+- [Setup](docs/setup.md) and [operations](docs/operations.md)
+- [Training workflow](docs/training.md) and [harness API](libs/evaluation-harness/README.md)
+- [Complete documentation index](docs/README.md)

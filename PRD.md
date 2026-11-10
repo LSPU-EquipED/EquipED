@@ -1,404 +1,99 @@
-# EquipEd PRD
-## A Multi-Agent SLM Evaluation System for Quality Assurance using NLP
-
-**Institution:** Laguna State Polytechnic University – Santa Cruz Campus, College of Computer Studies  
-**Proponents:** Alberto, Marc Justin G. · Aquino, Jose V. III · Garin, Jeremy M.  
-**Version:** 0.3 | **Status:** `DRAFT — Pending Data Completion`
-
----
-
-## Table of Contents
-
-1. [Problem Statement](#1-problem-statement)
-2. [Goals & Success Metrics](#2-goals--success-metrics)
-3. [Users & Roles](#3-users--roles)
-4. [System Scope](#4-system-scope)
-5. [Deliverables](#5-deliverables)
-6. [Functional Requirements](#6-functional-requirements)
-7. [Non-Functional Requirements](#7-non-functional-requirements)
-8. [Data Requirements](#8-data-requirements)
-9. [Evaluation Criteria & Rubrics](#9-evaluation-criteria--rubrics)
-10. [Use Cases](#10-use-cases)
-11. [Assumptions & Constraints](#11-assumptions--constraints)
-12. [Open Items](#12-open-items)
-
----
-
-## 1. Problem Statement
-
-The Curriculum Instruction Development (CID) Office at LSPU SCC evaluates Self-Paced Learning Modules (SLMs) manually through four institutional units: Subject Matter Experts (SME), Program Coordinators, the Gender and Development (GAD) Unit, and the Innovation and Technology Support Office (ITSO). Each unit reviews modules independently against their own rubric criteria.
-
-This process has three compounding problems:
-
-**Inefficiency.** Each module requires independent review by multiple evaluators. As the volume of SLMs across academic programs grows, the manual workload creates backlogs in the CID Office.
-
-**Inconsistency.** Different evaluators interpret rubric criteria differently, producing variable scores for materially similar content.
-
-**Limited traceability.** There is no centralized system for tracking evaluation status, scores, or feedback history across the full SLM inventory.
-
-EquipEd addresses these problems by automating the initial evaluation layer — analyzing SLMs against institutional rubric criteria and generating structured feedback — while preserving human evaluator authority over final decisions.
-
----
-
-## 2. Goals & Success Metrics
-
-### 2.1 Goals
-
-| # | Goal |
-|---|---|
-| G-01 | Automate rubric-based SLM evaluation across all four institutional stakeholder perspectives |
-| G-02 | Ground all evaluation feedback in institutional reference documents (syllabi, curriculum guides, rubrics) |
-| G-03 | Generate a consolidated scorecard and flagged document highlights per evaluated SLM |
-| G-04 | Capture evaluator feedback and use it to progressively improve evaluation accuracy over time |
-| G-05 | Provide a centralized web interface for document submission, evaluation results, and evaluation history |
-
-### 2.2 Success Metrics
-
-| Metric | Target | Measurement Method |
-|---|---|---|
-| Evaluation agreement with human experts | ≥ 90% precision, recall, and accuracy | Validated against expert-reviewed SLMs from the LSPU SCC corpus |
-| Reduction in manual evaluation time | Measurable reduction vs. baseline | Time study comparing manual vs. system-assisted evaluation cycles |
-| Rubric coverage | 100% of evaluation criteria across all four rubrics addressed | Rubric mapping verification against system outputs |
-| Evaluator feedback incorporation | System prompt refinements traceable to logged preference data | Version history of agent prompts vs. preference log entries |
-
----
-
-## 3. Users & Roles
-
-### 3.1 Human System Roles
-
-| Role | Description | System Access |
-|---|---|---|
-| **Faculty Member** | Submits SLMs for evaluation; reviews flagged sections and scores to guide revisions | Upload SLMs; view own evaluation results and feedback |
-| **Admin / CID Staff** | Manages the system, reviews evaluator feedback, validates agent-generated outputs, maintains institutional references and rubrics, monitors the full evaluation inventory | Full system access including evaluation history, preference logs, rubric management, and monitoring matrix |
-
-### 3.2 Evaluator Agent Domains
-
-The system includes four internal evaluator subagents that operate on institutional rubric domains. These are **not human login roles** but rather **automated agent domains** that generate evaluation perspectives:
-
-| Agent Domain | Institutional Stakeholder | Evaluation Focus |
-|---|---|---|
-| **SME** | Subject Matter Expert | Content accuracy, coherence, and instructional organization |
-| **Coordinator** | Program Coordinator | Curriculum alignment and OBE compliance |
-| **GAD** | Gender and Development Unit | Gender sensitivity and inclusivity |
-| **ITSO** | Innovation and Technology Support Office | IP compliance and data privacy |
-
-**Terminology Note:** "Evaluator" in this document refers to the automated agent domains (SME, Coordinator, GAD, ITSO) unless explicitly qualified as "human evaluator" or "admin user." Human system roles are limited to Faculty Member and Admin / CID Staff (Section 3.1).
-
-**Current implementation discrepancy:** The feedback API and its ownership tests also permit faculty to review evaluations they submitted. The admin-only policy stated below remains unresolved; the results-screen consolidation preserves existing backend authorization and does not introduce institutional approval authority.
-
-**Note:** Admin users review and validate all agent-generated outputs. Feedback submitted by admin users on agent outputs is logged for iterative prompt refinement. Faculty members may view evaluation results but do not submit formal feedback on agent outputs.
-
----
-
-## 4. System Scope
-
-### 4.1 Academic & Program Scope
-
-The system is deployed for **Laguna State Polytechnic University – Santa Cruz Campus (LSPU SCC)** within the **College of Computer Studies (CCS)**. Current product scope supports the following canonical degree programs:
-- **`BSInfoTech`** (Bachelor of Science in Information Technology) — *Note: `BSIT` is explicitly not used as the canonical code to prevent ambiguity with Industrial Technology.*
-- **`BSCS`** (Bachelor of Science in Computer Science)
-
-Other academic departments and campuses within LSPU SCC are explicitly designated for future institutional expansion.
-
-### 4.2 In Scope
-
-- **Document Processing:** Processing of CCS SLMs (submitted as PDF documents), CCS curriculum guides, and LSPU CCS syllabi, alongside institutional evaluation rubrics.
-- **Evaluation Domains:** Automated evaluation across four stakeholder rubric domains: Organization & Presentation (SME), Assessment (SME), Curriculum Alignment & OBE (Program Coordinator), Inclusivity & Gender Sensitivity (GAD Unit), and IP & Data Privacy (ITSO).
-- **Evaluation Modes:** Faculty submits one specialist evaluation at a time (SME, Coordinator, GAD, or ITSO). Coordinator requires a ready authoritative curriculum; the syllabus is optional for specialist submissions. A successful job completes its selected domain, while the document-level monitoring matrix remains in progress until all four domains complete. Intentional partial-without-curriculum bundles remain available to Admin model-validation benchmarks and historical jobs, not new faculty submissions.
-- **Outputs & Management:** Generation of rubric-based scores, contextual document highlights, consolidated evaluation reports (D-03), web dashboard (D-05), and an Instructional Materials Monitoring Matrix (D-04).
-- **Feedback & Optimization:** Admin-only preference logging mechanism (D-06) capturing Accept / Reject / Edit feedback on agent outputs to support iterative prompt updates.
-- **Reviewed DPO Packages:** An active approved administrator may select a reviewed frozen package per agent using the local import script. Existing Admin training readiness and notebook jobs copy that package without mixing later feedback. Restoring feedback export preserves historical packages and corrections. Synthetic reference labels remain distinct from independent faculty judgments.
-
-New ITSO submissions use the normal five-criterion advisory rubric evaluation and existing faculty scorecard. Every run requires credential-free public search and available source-page retrieval for criteria 1 and 2, with source links, grounded evidence and coverage limits. There is no policy-approval or manual fact-adjudication prerequisite or local-only opt-out. Queries contain public citation metadata from References, Bibliography or Learning resources, or explicitly labelled lesson/topic names when no safely identifiable citations are detected. Sources may be identified by author and work names without hyperlinks; missing URLs alone do not lower the advisory score. Missing citations remain an advisory finding; topic matches do not verify attribution. Body passages and personal data remain outside search queries. Disabled external access blocks admission; missing required tools, unsafe execution, cancellation, no safe query fields or no usable public source passage fail execution. Bounded per-reference provider failures are retained as coverage limits without discarding earlier usable passages; exhausted retrieval time stops additional checks rather than clearing their evidence. The existing results preserve source URLs, retrieved passages and coverage limits even when the model omits them. Only the current ITSO harness executes evaluations; retired versions remain readable as historical results. Historical records retain their frozen meaning and unavailable scores. Software activation and generated scores do not constitute institutional approval.
-
-ITSO document review uses validated advisory source findings from criteria 1–2 to inform faculty ownership, without treating source similarity, citation, or absence of a plagiarism finding as proof of ownership or permission. Criteria 3–5 have explicit relational scoring rules and four score descriptors. Decisive ownership/rights findings require a verbatim module quotation; incomplete evidence without a concrete concern supports provisional 3. Confidentiality scores below 4 require a quoted concern; no detected concern receives advisory 4 even with limited extracted-text coverage. The scorecard states actual reviewed excerpt coverage and excludes images and extraction omissions from its assurance. Teacher/student rights assess credit, permitted educational use, authorization or lawful basis for publication, and unfair waivers. Existing ingested local IP, privacy and academic-rights policies may support this review through the existing residency-gated retrieval path. Unavailable policy evidence is a disclosed limitation, not noncompliance or a launch prerequisite. Policy passages never enter public search queries. No additional workflow, model request group or evaluation layer is introduced.
-
-### 4.3 Reference Authority & Calibration Policy
-
-- **Authoritative Reference Data:** Official LSPU CCS syllabi, curriculum guides, and institutional rubrics govern evaluation criteria and alignment. Required ITSO public-reference checks provide scoped corroborating evidence for criteria 1 and 2 and do not replace institutional authority.
-- **Secondary Calibration Materials:** Publicly accessible curriculum or benchmark materials from other Philippine state universities serve strictly as secondary calibration materials for offline prompt tuning and benchmark alignment. They shall never serve as live evaluation retrieval evidence. Private university materials are explicitly excluded from this calibration source policy.
-- **Historical SLM Calibration Corpus:** Historical SLMs may only be used as an admin-only, de-identified calibration corpus paired with recorded human-reviewed outcomes for model/prompt calibration. They shall never be ingested or retrieved as live evaluation evidence.
-
-### 4.4 Out of Scope
-
-- Evaluation of instructional materials other than SLMs (e.g., textbooks, slide decks, video content).
-- Evaluation of programs, courses, or departments outside the LSPU SCC College of Computer Studies (CCS).
-- Evaluation based on rubrics or standards from institutions other than LSPU SCC.
-- Live retrieval or inclusion of secondary external materials (from other state universities) or historical SLMs during live SLM evaluations.
-- Automatic generation of revised or corrected SLM content.
-- Real-time collaborative review between multiple evaluators on the same session.
-- Processing of SLM content written in languages other than English and Filipino.
-
-### 4.5 Future Scope & Expansion
-
-The following capabilities are identified as governed future expansion directions and are **not currently implemented**:
-- **Institutional Expansion:** Expanding scope to other LSPU SCC academic departments and campuses beyond the College of Computer Studies.
-- **Governed Calibration Corpus:** Implementation of the admin-only, de-identified historical SLM calibration dataset with recorded human-reviewed outcomes.
-- **Secondary Source Ingestion Pipeline:** Automated ingestion and management of external secondary calibration materials from other Philippine state universities.
-
----
-
-## 5. Deliverables
-
-These are the concrete outputs the system must produce. Each deliverable is referenced by functional requirements in Section 6.
-
-### D-01 — Consolidated Evaluation Scorecard
-
-A structured scorecard produced per evaluated SLM containing:
-
-- Per-criterion scores from each of the four rubric domains, on the institutional 4-point scale (4 = Excellent, 3 = Satisfactory, 2 = Needs Improvement, 1 = Poor)
-- Per-domain subtotals and an aggregate evaluation total
-- Identification of which agent (SME, Program Coordinator, GAD, ITSO) produced each score
-
-### D-02 — Contextual Document Highlights
-
-A set of annotated flags on the evaluated SLM identifying:
-
-- Specific text passages or sections that deviate from evaluation criteria
-- The rubric criterion violated per flag
-- A brief justification for each flag grounded in the retrieved reference document context
-
-### D-03 — Final Evaluation Report
-
-A structured document combining D-01 and D-02, suitable for submission to the CID Office, containing:
-
-- Cover information (SLM title, program, evaluation date, evaluator agents)
-- Full scorecard (D-01)
-- All contextual flags with justifications (D-02)
-- An overall evaluation summary
-
-### D-04 — Instructional Materials Monitoring Matrix
-
-A persistent, centralized tracking record of all SLMs that have passed through the system, containing:
-
-- SLM title and associated program
-- Submission date
-- Current evaluation status (Pending / Evaluated / Reviewed / Approved)
-- Aggregate score and per-domain scores
-- Evaluator feedback status (No feedback / Partially reviewed / Fully reviewed)
-
-### D-05 — Web Dashboard
-
-A browser-based interface through which all user roles interact with the system. The dashboard must surface all other deliverables (D-01 through D-04) and provide the document upload and feedback interfaces described in Section 6.
-
-### D-06 — Preference Log & Prompt Version History
-
-A persistent record of:
-
-- All evaluator Accept / Reject / Edit feedback interactions with timestamps and user role
-- The agent system prompt version active at the time each evaluation was generated
-- A history of prompt updates with the preference data that motivated each change
-
----
-
-## 6. Functional Requirements
-
-### 6.1 Document Submission
-
-| ID | Requirement | Deliverable | Priority |
-|---|---|---|---|
-| FR-01 | The system shall accept PDF uploads of SLMs via the web dashboard | D-05 | High |
-| FR-02 | The system shall accept PDF uploads of course syllabi, curriculum guides, and institutional evaluation rubrics as reference documents | D-05 | High |
-| FR-03 | The system shall allow a submitted SLM to be associated with its corresponding syllabus and curriculum guide at the time of upload | D-05 | High |
-| FR-04 | The system shall extract machine-readable text from uploaded PDFs, including text embedded in scanned or image-based pages | D-01, D-02 | High |
-| FR-05 | The system shall tag all extracted document chunks with their source type (SLM / syllabus / rubric / curriculum) to support direct SLM evaluation routing and separate retrieval scoping for reference context | D-01, D-02 | High |
-
-### 6.2 Automated Evaluation
-
-| ID | Requirement | Deliverable | Priority |
-|---|---|---|---|
-| FR-06 | The system shall evaluate each submitted SLM against the SME rubric criteria for Organization & Presentation and Assessment domains, and provide a standalone non-scoring Syllabus Alignment workspace that compares an owned SLM with an explicitly selected, retrieval-ready syllabus using the SME model configuration and one replaceable current result per SLM | D-01, D-02 | High |
-| FR-07 | The system shall evaluate an SLM against the Program Coordinator rubric criteria using its ready authoritative curriculum context; standalone syllabus-to-SLM alignment is a separate non-scoring workflow | D-01, D-02 | High |
-| FR-08 | The system shall evaluate each submitted SLM against the GAD Unit rubric criteria for Inclusivity & Gender Sensitivity | D-01, D-02 | High |
-| FR-09 | The system shall evaluate each submitted SLM against the ITSO rubric criteria for IP compliance and Data Privacy | D-01, D-02 | High |
-| FR-10 | Evaluation feedback shall be grounded in the processed SLM and applicable institutional references. Current Coordinator adapter 4 uses document-scoped bounded SLM retrieval, authoritative curriculum passages and grouped LLM rubric judgments with attached original evidence. All findings and summary must validate after one bounded repair or the full evaluation fails; no partial reasoning result is successful. Historical Coordinator versions retain their saved contracts. Specialists only retrieve institutional reference types relevant to their domain | D-02, D-03 | High |
-| FR-11 | The system shall assess the sequential flow, logical organization, and instructional coherence of SLM content as part of the SME evaluation | D-01, D-02 | Medium |
-
-### 6.3 Scoring & Report Generation
-
-| ID | Requirement | Deliverable | Priority |
-|---|---|---|---|
-| FR-12 | The system shall assign a score on the institutional 4-point scale to each evaluation criterion across all four rubric domains | D-01 | High |
-| FR-13 | The system shall compute each completed specialist's domain subtotal and a document-level aggregate only when all four specialist domains are present | D-01 | High |
-| FR-14 | The system shall annotate specific SLM text passages that deviate from rubric criteria, identifying the criterion violated and providing a retrieval-grounded justification | D-02 | High |
-| FR-15 | The system shall generate a final evaluation report combining the scorecard and document highlights, structured for CID submission | D-03 | High |
-
-### 6.4 Web Dashboard
-
-| ID | Requirement | Deliverable | Priority |
-|---|---|---|---|
-| FR-16 | The dashboard shall provide a document upload interface for submitting SLMs and associating reference documents | D-05 | High |
-| FR-17 | The dashboard shall display the evaluation scorecard, per-agent scores, document highlights, and final report upon evaluation completion | D-05 | High |
-| FR-18 | The dashboard shall indicate evaluation pipeline progress to the user while processing is underway | D-05 | Medium |
-| FR-19 | The dashboard shall provide Accept, Reject, and Edit controls on each generated evaluation output, accessible exclusively to admin users for validating and refining agent outputs | D-05 | High |
-| FR-20 | The dashboard shall display the Instructional Materials Monitoring Matrix exclusively to admin users | D-04, D-05 | Medium |
-| FR-21 | The dashboard shall maintain a searchable evaluation history accessible to authorized users | D-04, D-05 | Medium |
-
-### 6.5 Preference Logging & Prompt Optimization
-
-| ID | Requirement | Deliverable | Priority |
-|---|---|---|---|
-| FR-22 | The system shall log all admin Accept / Reject / Edit interactions as preference records, capturing the admin user role, timestamp, agent domain, and original output | D-06 | High |
-| FR-23 | The system shall version all agent evaluation prompts, associating each evaluation result with the prompt version that produced it | D-06 | Medium |
-| FR-24 | The system shall provide an admin interface for reviewing accumulated preference logs and identifying recurring disagreement patterns to inform calibration | D-05, D-06 | Medium |
-| FR-25 | The system shall record a traceable history of prompt updates, linking each change to the preference data that motivated it | D-06 | Medium |
-
----
-
-## 7. Non-Functional Requirements
-
-| ID | Requirement | Priority |
-|---|---|---|
-| NFR-01 | **Accuracy.** The system shall achieve evaluation agreement with human experts of at least 90% on precision, recall, and accuracy metrics, validated against expert-reviewed SLMs from the LSPU SCC corpus. | High |
-| NFR-02 | **Language Support.** The system shall correctly process SLM content written in English and Filipino. Content in other languages is out of scope and may produce inaccurate outputs. | High |
-| NFR-03 | **Data Privacy.** All institutional documents processed by the system shall be handled in compliance with RA 10173 (Data Privacy Act of 2012). Personally identifiable information in uploaded documents shall be anonymized prior to processing. | High |
-| NFR-04 | **Data Residency.** Embedding runs on institutional infrastructure. Vector storage is local/private by default; explicitly authorized Chroma Cloud may hold institutional reference, rubric, policy and document-scoped SLM vectors with their text and metadata. SLM indexing supports Coordinator evidence preparation and never retrieves another module as evaluation evidence. Cloud configuration does not authorize external inference. Policy delivery retains its private-model gate and document access remains ownership-scoped. `[TBD: backend data handling policy required]` | High |
-| NFR-05 | **Human Oversight.** System-generated evaluation outputs are advisory only. All outputs are subject to human evaluator review and shall not constitute official CID evaluation decisions without explicit evaluator confirmation. | High |
-| NFR-06 | **Processing Time.** The system shall complete evaluation of a standard SLM (20–40 pages) within a processing window acceptable for institutional workflows. `[TBD: target to be defined upon prototype benchmarking]` | Medium |
-| NFR-07 | **Maintainability.** Rubric content, agent evaluation prompts, and document preprocessing configurations shall be independently updatable without requiring full system redeployment. | Medium |
-| NFR-08 | **Institutional Scope.** The system's rubric logic and knowledge base are calibrated to LSPU SCC standards. Portability to other institutions is not a design goal and is outside scope. | Medium |
-
----
-
-## 8. Data Requirements
-
-### 8.1 Required Data Sources
-
-| Source | Role in System | Collection Status |
-|---|---|---|
-| Self-Paced Learning Modules (SLMs) | Primary evaluation subject; extracted chunk text is evaluated directly, with stored chunks retained for traceable retrieval support | `[TBD — In progress]` |
-| SME & Program Coordinator Evaluation Rubric | Primary retrieval corpus for rubric-grounded scoring criteria in FR-06 and FR-07 | Partially collected |
-| GAD Unit Evaluation Rubric | Primary retrieval corpus for rubric-grounded scoring criteria in FR-08 | Partially collected |
-| ITSO Evaluation Rubric | Primary retrieval corpus for rubric-grounded scoring criteria in FR-09 | Partially collected |
-| Course Syllabi | Primary retrieval corpus for syllabus alignment verification (FR-07) | `[TBD]` |
-| Curriculum Guides | Primary retrieval corpus for OBE compliance verification (FR-07) | `[TBD]` |
-| CID Evaluated Forms | Output structure reference for report generation; baseline for preference logging | `[TBD]` |
-
-### 8.2 Data Constraints
-
-Administrators can add/edit structured curriculum objectives and replace existing courses' I/E/D mappings through an authenticated admin workspace. The program choices are exactly BSCS and BSInfoTech. Standalone alignment accepts processed SLMs from both programs (including the legacy BSIT read alias), with a same-program course and same-program mapped objectives. Missing course mappings remain an explicit admission failure. Changes are audited and version-checked, ordinary reseeding preserves admin ownership, and historical alignment snapshots remain unchanged. UUID identities are immutable; deleting objectives and creating courses are outside this editor's scope.
-
-- Institutional evaluation criteria and alignment references come from LSPU CCS documents (syllabi, curriculum guides, rubrics). Every ITSO run searches public sources and retrieves available passages for criteria 1 and 2, using bibliography details or explicitly labelled lesson/topic names when citations are absent. These scoped checks do not replace institutional criteria or certify the whole document.
-- Public materials from other Philippine state universities may support secondary prompt calibration; private university materials are excluded from calibration policy. This calibration policy is separate from ITSO's configured public-reference verification.
-- Historical SLMs are restricted to an admin-only, de-identified calibration corpus with recorded human review decisions for future prompt alignment (governed future capability; not currently implemented), and are never used as live evaluation evidence.
-- Documents containing personally identifiable information must be anonymized before ingestion.
-- Evaluation accuracy depends on the quality and internal consistency of applicable references. Coordinator specialist evaluation requires a ready curriculum. A missing syllabus does not make a successful single-specialist job partial; deliberate no-curriculum partial bundles remain available only for Admin model validation and historical jobs.
-- The preference logging system (D-06) requires a minimum corpus of evaluator feedback interactions before prompt refinements are actionable.
-
----
-
-## 9. Evaluation Criteria & Rubrics
-
-### 9.1 Scoring Scale
-
-| Score | Label |
-|---|---|
-| 4 | Excellent |
-| 3 | Satisfactory |
-| 2 | Needs Improvement |
-| 1 | Poor |
-
-### 9.2 Rubric Domain Coverage per Agent
-
-| Agent | Rubric Domain | Criteria Count | Sample Criteria |
-|---|---|---|---|
-| SME & Program Coordinator | Organization & Presentation | 5 | Topic coherence across units; clarity of directions; accuracy of paragraphs; enhancement activities |
-| SME & Program Coordinator | Assessment | 5 | Assessment variety; ongoing progress monitoring; prescriptive feedback; effective objective gauging |
-| GAD Unit | Inclusivity & Gender Sensitivity | 5 | Freedom from gender stereotypes; equal representation; inclusive language; promotion of equality |
-| ITSO | IP & Data Privacy | 5 | Absence of plagiarism; proper citation; faculty ownership rights; student data confidentiality |
-
-### 9.3 Score Aggregation
-
-The backend uses each specialist's mean criterion score on the 1–4 scale. The completed document matrix combines SME (35%), Coordinator (30%), GAD (20%), and ITSO (15%); it withholds the composite until all four domains complete. These generated results remain advisory, not institutional certification.
-
-Coordinator adapter 4 uses `coordinator_current.v6` with ten LLM-scored rubric criteria and qualitative C-01 alignment as a separate 1–4 advisory supplement grounded in SLM and curriculum passages. C-01 has no objective count or denominator and remains excluded from the official mean, composite, and institutional PDF. Adapter 4 uses explicit immutable snapshots; the production manifest default remains v2 for legacy callers. Historical v1–v5 results preserve their original meaning and remain readable. Only adapter 4 executes Coordinator evaluations; retired snapshots require a new evaluation.
-
-Current Coordinator execution does not construct an exhaustive objective inventory or denominator. It ranks bounded exact SLM and curriculum passages and requires complete reasoning, evidence, and summary in each native group; failure after one bounded repair fails the evaluation without partial success. Earlier source-inventory and verification behavior belongs to historical Coordinator versions.
-
----
-
-## 10. Use Cases
-
-### UC-01: Faculty Submits SLM for Evaluation
-
-| | |
-|---|---|
-| **Actor** | Faculty Member |
-| **Precondition** | Faculty has an uploaded SLM in PDF format and permission for the selected specialist desk. A Coordinator run additionally requires a ready curriculum; a syllabus is optional. |
-| **Flow** | 1. Faculty selects a specialist desk and submits the SLM with its confirmed program and applicable references. 2. The system processes the SLM and runs that one specialist. 3. Faculty reviews the specialist's advisory scorecard and evidence; other permitted specialists may evaluate the SLM through their own desks. |
-| **Postcondition** | The targeted specialist's completed evaluation is stored and its domain is merged into the Monitoring Matrix (D-04). The document-level composite appears only after all four domains are present. |
-| **Exception** | If text extraction fails on one or more pages, the system flags those pages as unprocessable and proceeds with available content. |
-
-### UC-02: Admin Validates and Submits Feedback on Generated Outputs
-
-| | |
-|---|---|
-| **Actor** | Admin / CID Staff |
-| **Precondition** | A completed evaluation report exists for an SLM. |
-| **Flow** | 1. Admin reviews the scorecard and highlights in the dashboard. 2. For each output item, admin selects Accept, Reject, or submits an Edit with a correction. 3. System logs the interaction as a preference record in D-06, capturing the admin user role, timestamp, agent domain, and original output. |
-| **Postcondition** | Preference record stored. The SLM's feedback status in the Monitoring Matrix updates accordingly. |
-| **Exception** | If no feedback is submitted, the evaluation record remains unchanged and the prompt configuration is retained. |
-
-### UC-03: Admin Reviews Preference Logs
-
-| | |
-|---|---|
-| **Actor** | Admin / CID Staff |
-| **Precondition** | A sufficient volume of evaluator feedback has accumulated in the preference log (D-06). |
-| **Flow** | 1. Admin accesses the preference review interface and filters logs by agent domain and feedback type. 2. Admin identifies patterns where a specific agent consistently diverges from evaluator judgment. 3. Admin reviews those patterns alongside model-validation results to inform subsequent improvement work. |
-| **Postcondition** | Evaluator feedback remains available for review and calibration. Reviewing logs does not change the active prompt. |
-| **Exception** | When no feedback matches the selected filters, the interface shows an empty state. |
-
-Agent prompt editing and version restoration are outside the admin portal. Existing backend prompt configuration, version records, and evaluation behavior are retained.
-
-### UC-04: Admin Reviews Monitoring Matrix
-
-| | |
-|---|---|
-| **Actor** | Admin / CID Staff |
-| **Precondition** | One or more SLMs have been evaluated and recorded in the system. |
-| **Flow** | 1. Admin opens the Monitoring Matrix view on the dashboard. 2. Admin filters the matrix by program, evaluation status, or score range. 3. Admin identifies SLMs with low scores or incomplete feedback and follows up with relevant faculty or coordinates with program coordinators. |
-| **Postcondition** | No state change in the system. Admin uses the matrix as a management tool for tracking SLM review progress and institutional evaluation inventory. |
-
----
-
-## 11. Assumptions & Constraints
-
-### 11.1 Assumptions
-
-- LSPU SCC will authorize access to fully-evaluated SLMs, syllabi, curriculum guides, and CID evaluation forms within the project timeline
-- All four institutional evaluation rubrics are sufficiently documented to serve as the agent knowledge base
-- Human evaluators from all four units will be available to provide feedback for preference logging
-- SLM documents are submitted in PDF format; scanned documents are handled by the OCR layer
-- Syllabus and curriculum documents are internally coherent; significant incoherence in source materials will reduce initial evaluation reliability
-
-### 11.2 Constraints
-
-| Constraint | Description |
-|---|---|
-| **Institutional & Departmental Scope** | System is designed exclusively for LSPU SCC College of Computer Studies (CCS) supporting canonical programs `BSInfoTech` and `BSCS`. Rubric calibration, knowledge base content, and scoring logic are specific to LSPU CCS. Other LSPU SCC departments and external institutions are outside current product scope. |
-| **Language Scope** | English and Filipino only. Other languages are outside scope. |
-| **Human Oversight** | System outputs are advisory. Final evaluation authority remains with institutional evaluators. System outputs do not constitute official CID decisions without evaluator confirmation. |
-| **Prompt-Based Optimization** | Preference-driven improvement operates through agent prompt updates, not model weight modification. This is a constraint of the local prompt-driven LLM backend architecture. |
-| **Data Completeness** | Evaluation accuracy depends on the quality of institutional reference documents. Incomplete or inconsistent source data will degrade reliability at initial deployment. |
-| **LLM Backend Data Governance** | LLM calls are expected to run on a local or self-hosted backend. Compliance with RA 10173 for any model-hosting or inference path still requires confirmation from LSPU SCC institutional IT governance. `[TBD]` |
-
----
-
-## 12. Open Items
-
-| # | Item | Impact | Owner | Status |
-|---|---|---|---|---|
-| OI-01 | Full SLM dataset not yet collected | Blocks accuracy validation (NFR-01) and preference logging baseline | Research team | Pending institutional data request |
-| OI-02 | GAD and ITSO rubrics not fully finalized | Blocks agent knowledge base population for FR-08 and FR-09 | Research team | Pending CID document release |
-| OI-03 | Course syllabi not yet collected | Blocks syllabus alignment evaluation (FR-07) | Research team | Pending departmental data request |
-| OI-04 | Curriculum guides not yet collected | Blocks OBE compliance evaluation (FR-07) | Research team | Pending departmental data request |
-| OI-05 | CID evaluated forms not yet obtained | Blocks report structure reference and preference baseline (D-06) | Research team | Pending CID approval |
-| OI-06 | Processing time target undefined | Blocks NFR-06 definition | Research team | Pending prototype benchmarking |
-| OI-07 | LLM backend data handling policy not confirmed | Blocks NFR-04 and NFR-05 compliance confirmation | LSPU SCC IT / legal | Pending institutional review |
-| OI-08 | Minimum feedback volume for prompt refinement not defined | Blocks the actionability threshold for subsequent prompt calibration | Research team | Pending advisor input |
-
----
-
-*LSPU SCC, College of Computer Studies*
+# EquipED requirements
+
+[Product scope](PRODUCT.md) defines the users and institutional purpose;
+[architecture](ARCHITECTURE.md) defines the system boundaries.
+
+## Outcomes
+
+- Reduce repetitive preparation and recordkeeping during institutional review.
+- Apply institutional rubrics with inspectable evidence and traceable feedback.
+- Preserve ownership isolation, saved history, and human approval authority.
+
+Expert agreement and review-time reductions require measured comparisons with
+human-reviewed materials. The research target of at least 90% precision, recall,
+and accuracy is a validation target, not a demonstrated product guarantee.
+
+## Documents and access
+
+| Area | Requirement |
+| --- | --- |
+| Accounts | Authenticate faculty and administrators; enforce account status and specialist permissions. |
+| Ownership | Faculty access their own documents and evaluations. Administrative access follows server authorization. |
+| Intake | Accept PDF SLMs, extract selectable text, use configured OCR, and retain source/page identities. |
+| Readiness | Block unfinished or failed extraction; disclose retained warnings and review limits. |
+| References | Administrators manage curricula, syllabi, rubrics, and policies. Reference readiness includes successful vector writes. |
+| Programs | Accept BSCS and BSInfoTech on current writes; preserve supported legacy aliases on reads. |
+| Privacy | Require privacy-appropriate source preparation and anonymization before ingestion; extraction does not perform this automatically. |
+
+## Evaluation
+
+Faculty select an owned processed SLM, a permitted specialist, a confirmed
+program, and required references. The server validates admission and freezes the
+rubric. A durable job executes the selected specialist, saves validated output,
+and deterministically updates the monitoring matrix.
+
+Coordinator requires a ready same-program curriculum. ITSO requires enabled
+public-reference tools and at least one usable retrieved source passage. A
+missing syllabus does not make a successful selected-specialist job partial.
+Unhandled failures remain failed. Intentional no-curriculum partial bundles are
+limited to explicitly supported administrative or historical workflows.
+
+| Specialist | Required output |
+| --- | --- |
+| SME | Rubric scores and findings with exact evidence, or supported absence findings scoped to supplied text. |
+| Coordinator | Ten LLM-scored organization/presentation and assessment criteria, complete findings and summary, plus a separate qualitative curriculum-alignment supplement. Invalid output after bounded repair fails the run. |
+| GAD | Gender and inclusivity findings using the configured evidence and scoring rules. |
+| ITSO | Five advisory scores with source checks, source links/passages, and coverage limits, covering citation, ownership, confidentiality, and teacher/student rights. |
+
+Evidence must be traceable to supplied sources. Absence findings do not establish
+absence from omitted text or images. ITSO distinguishes topical context from
+verification of an existing citation and uncertainty from noncompliance.
+
+## Scoring and reporting
+
+Use the institutional 1–4 scale and saved rubric descriptors. Standard printed
+bands are 3.50–4.00 Very Satisfactory, 2.50–3.49 Satisfactory, 1.50–2.49 Needs
+Improvement, and 1.00–1.49 Poor.
+
+Each specialist's score is its criterion mean. The completed matrix weights SME
+35%, Coordinator 30%, GAD 20%, and ITSO 15%. Withhold the composite until all four
+domains complete. Coordinator's curriculum supplement is excluded from the
+official mean, composite, and institutional scorecard PDF.
+
+Preserve each run's rubric, evidence, and provenance. Re-evaluation creates a new
+run; historical formats retain their original interpretation. Retired formats do
+not authorize new execution. Institutional exports preserve the original forms
+and human signature fields. Missing or invalid scores stay blank; totals require
+complete, correctly matched criteria.
+
+## Feedback and administration
+
+Faculty may submit criterion feedback on evaluations they submitted.
+Administrators may review across users and inspect preference logs. Record actor,
+criterion, original generation, action, and correction separately from generated
+scores and institutional approval.
+
+Administrators maintain rubric revisions, references, accounts, model settings,
+and structured curriculum objectives and course mappings. Objective/mapping
+changes are version-checked and actor-attributed. Saved alignment results retain
+the reference versions used. Prompt configurations and history remain
+backend-managed; there is no administrator prompt-editing workspace.
+
+Training preserves dataset identity, provenance, and synthetic-versus-human
+labels. Adapter upload and validation do not imply activation or improvement.
+
+## Standalone alignment
+
+Syllabus checks compare an owned SLM with an explicitly selected ready syllabus.
+Curriculum checks use a same-program course's mapped objectives; missing mappings
+block the check. These workflows remain separate from specialist matrix scoring.
+
+## Operating requirements
+
+- Support English and Filipino with configured OCR resources.
+- Keep authenticated access, ownership isolation, and explicit external-data authorization.
+- Recover relational records, document binaries, and vectors as separate assets.
+- Use a single-process backend with durable in-process admission and recovery.
+- Show actual stages and failures without invented progress or latency guarantees.
+- Keep evidence inspectable, controls keyboard-accessible, and status understandable without color alone.
+- Keep all generated evaluation and alignment results advisory.
