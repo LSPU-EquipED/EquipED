@@ -26,7 +26,10 @@
     "harness:test": "cd apps && uv run --project server pytest ../libs/evaluation-harness/tests",
     "server:lint": "cd apps && uv run --project server ruff check --config server/pyproject.toml server ../libs/evaluation-harness",
     "server:format": "cd apps && uv run --project server ruff format --check --config server/pyproject.toml server ../libs/evaluation-harness",
-    "server:migrate": "cd apps/server && uv run alembic upgrade head"
+    "server:migrate": "cd apps/server && uv run alembic upgrade head",
+    "site:build": "node site/build.mjs",
+    "site:publish": "node site/publish.mjs",
+    "site:check": "node site/build.mjs && node site/check.mjs"
   },
   "devDependencies": {
     "concurrently": "10.0.5"

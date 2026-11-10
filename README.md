@@ -181,6 +181,8 @@ and verification; see [operations and deployment](docs/operations.md).
 
 ## Documentation
 
+- [Thesis showcase](https://lspu-equiped.github.io/EquipED/) · [Site maintenance](site/README.md)
+
 - [Product overview](PRODUCT.md) and [requirements](PRD.md)
 - [Architecture](ARCHITECTURE.md) and [design system](DESIGN.md)
 - [Evaluation workflow](docs/evaluation.md)
