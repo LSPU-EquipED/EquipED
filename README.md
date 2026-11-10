@@ -1,4 +1,33 @@
-# EquipED
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/branding/equiped-lspu-dark.svg" />
+    <img src="docs/assets/branding/equiped-lspu.svg" alt="EquipED × LSPU" width="560" />
+  </picture>
+</p>
+
+<p align="center">
+  Institutional review of self-paced learning modules.<br />
+  Laguna State Polytechnic University · Santa Cruz Campus<br />
+  College of Computer Studies
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/React-18-1b3b87?style=flat-square&amp;logo=react&amp;logoColor=white" alt="React 18" />
+  <img src="https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&amp;logo=typescript&amp;logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Python-3.12-3776ab?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.12" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&amp;logo=fastapi&amp;logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/pnpm-9.12.0-f69220?style=flat-square&amp;logo=pnpm&amp;logoColor=white" alt="pnpm 9.12.0" />
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#common-commands">Commands</a> ·
+  <a href="PRODUCT.md">Product</a> ·
+  <a href="ARCHITECTURE.md">Architecture</a> ·
+  <a href="DESIGN.md">Design system</a>
+</p>
+
+---
 
 EquipED is an advisory, multi-agent evaluation system for Self-Paced Learning
 Modules (SLMs) at **Laguna State Polytechnic University – Santa Cruz Campus,
