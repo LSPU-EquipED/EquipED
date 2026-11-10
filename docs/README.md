@@ -18,6 +18,8 @@
 
 ## Component guides
 
+- [Public thesis site](../site/README.md)
+
 - [Evaluation harness](../libs/evaluation-harness/README.md)
 - [Database metadata and migrations](../apps/server/db/README.md)
 - [PostgreSQL backups](../infra/postgres/README.md)
